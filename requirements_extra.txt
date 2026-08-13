@@ -1,2 +1,5 @@
 torchao>=0.17
 tqdm>=4.66
+accelerate
+torchvision
+Pillow

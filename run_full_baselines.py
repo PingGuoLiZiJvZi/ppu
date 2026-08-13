@@ -230,7 +230,7 @@ def parse_args() -> argparse.Namespace:
         description="Run all English and Chinese public baseline samples with progress"
     )
     parser.add_argument("--model-path", default="./Qwen3.5-2B")
-    parser.add_argument("--device", default="auto")
+    parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=20260625)
     parser.add_argument("--warmup-samples", type=int, default=2)
     return parser.parse_args()

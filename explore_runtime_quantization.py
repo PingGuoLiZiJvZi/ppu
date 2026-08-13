@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explore the 15 TorchAO W8A16 M/F/L/V combinations with live progress."""
+"""Explore 30 TorchAO W8A16/W8A8 M/F/L/V candidates with live progress."""
 
 from __future__ import annotations
 
@@ -41,15 +41,19 @@ DATASET_CN = ROOT / "datasets/mmbench/mmbench_dev_cn.tsv"
 BASELINE_EN = ROOT / "baseline_full_en.json"
 BASELINE_CN = ROOT / "baseline_full_cn.json"
 OUTPUT_DIR = ROOT / "quantization_exploration"
-DEVICE = "auto"
+DEVICE = "cuda:1"
 SEED = 20260625
 WARMUP_SAMPLES = 2
 SCREEN64_REPEATS = 3
 SCREEN256_REPEATS = 2
 FULL_REPEATS = 1
+BASELINE_POLL_SECONDS = 30
 MICROBENCH_WARMUP = 20
 MICROBENCH_REPEATS = 100
+COMPILE_MODE = "max-autotune"
+COMPILE_DYNAMIC = True
 GROUP_ORDER = "MFLV"
+QUANTIZATION_SCHEMES = ("W8A16", "W8A8")
 COMBINATIONS = (
     "Q_1000", "Q_0100", "Q_0010", "Q_0001",
     "Q_1100", "Q_1010", "Q_1001", "Q_0110", "Q_0101", "Q_0011",
@@ -82,6 +86,23 @@ EXPECTED_MODULE_COUNTS = {"M": 72, "F": 24, "L": 90, "V": 96}
 class ManifestEntry:
     language: str
     sample_id: str
+
+
+@dataclass(frozen=True)
+class Candidate:
+    scheme: str
+    combo: str
+
+    @property
+    def name(self) -> str:
+        return f"{self.scheme}_{self.combo}"
+
+
+CANDIDATES = tuple(
+    Candidate(scheme, combo)
+    for scheme in QUANTIZATION_SCHEMES
+    for combo in COMBINATIONS
+)
 
 
 @dataclass
@@ -264,32 +285,63 @@ def load_samples_for_manifest(
     return [sources[row.language][row.sample_id] for row in manifest]
 
 
-def baseline_accuracy_for_manifest(
+def baseline_metrics_for_manifest(
     manifest: list[ManifestEntry], baseline_en: Path, baseline_cn: Path
-) -> float:
+) -> dict[str, float]:
+    while missing := [
+        path for path in (baseline_en, baseline_cn) if not path.exists()
+    ]:
+        tqdm.write(
+            "[baseline] 等待文件："
+            + ", ".join(str(path) for path in missing)
+            + f"；{BASELINE_POLL_SECONDS} 秒后重试"
+        )
+        time.sleep(BASELINE_POLL_SECONDS)
+
     payloads = {"en": load_json(baseline_en), "cn": load_json(baseline_cn)}
-    correct = {
+    answers = {
         language: {
-            str(answer["question_id"]): bool(answer["correct"])
+            str(answer["question_id"]): answer
             for answer in payload["answers"]
         }
         for language, payload in payloads.items()
     }
-    return sum(correct[row.language][row.sample_id] for row in manifest) / len(manifest)
+    selected = [answers[row.language][row.sample_id] for row in manifest]
+    return {
+        "accuracy": statistics.fmean(bool(answer["correct"]) for answer in selected),
+        "avg_ttft_ms": statistics.fmean(float(answer["ttft_ms"]) for answer in selected),
+        "avg_throughput_tokens_per_sec": statistics.fmean(
+            float(answer["throughput_tokens_per_sec"]) for answer in selected
+        ),
+    }
 
 
-def torchao_api() -> tuple[Any, Any, str]:
+def torchao_api() -> tuple[Any, dict[str, Any], str]:
     import torchao
-    from torchao.quantization import Int8WeightOnlyConfig, quantize_
+    from torchao.quantization import (
+        Int8DynamicActivationInt8WeightConfig,
+        Int8WeightOnlyConfig,
+        quantize_,
+    )
 
-    return quantize_, Int8WeightOnlyConfig, torchao.__version__
+    return (
+        quantize_,
+        {
+            "W8A16": Int8WeightOnlyConfig,
+            "W8A8": Int8DynamicActivationInt8WeightConfig,
+        },
+        torchao.__version__,
+    )
 
 
-def apply_torchao_quantization(model: Any, combo: str) -> dict[str, Any]:
+def apply_torchao_quantization(
+    model: Any, candidate: Candidate
+) -> dict[str, Any]:
     import torch
 
-    quantize_, Int8WeightOnlyConfig, torchao_version = torchao_api()
-    active_groups = combo_groups(combo)
+    quantize_, config_types, torchao_version = torchao_api()
+    config = config_types[candidate.scheme]()
+    active_groups = combo_groups(candidate.combo)
     selected_names: set[str] = set()
     counts = {group: 0 for group in GROUP_ORDER}
     selected_modules: list[Any] = []
@@ -313,7 +365,7 @@ def apply_torchao_quantization(model: Any, combo: str) -> dict[str, Any]:
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     started = time.perf_counter()
-    quantize_(model, Int8WeightOnlyConfig(), filter_fn=filter_fn)
+    quantize_(model, config, filter_fn=filter_fn)
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
@@ -323,7 +375,8 @@ def apply_torchao_quantization(model: Any, combo: str) -> dict[str, Any]:
         weight_types[name] += 1
 
     return {
-        "backend": "torchao.Int8WeightOnlyConfig",
+        "scheme": candidate.scheme,
+        "backend": f"torchao.{type(config).__name__}",
         "torchao_version": torchao_version,
         "active_groups": sorted(active_groups),
         "module_count": len(selected_names),
@@ -364,9 +417,29 @@ def cpu_peak_rss_bytes() -> int:
     return int(counters.PeakWorkingSetSize)
 
 
+def aggregate_runs(
+    stage: str, runs: list[dict[str, Any]]
+) -> tuple[str, dict[str, float]]:
+    values = {
+        key: [float(run[key]) for run in runs]
+        for key in (
+            "accuracy",
+            "avg_ttft_ms",
+            "avg_throughput_tokens_per_sec",
+        )
+    }
+    if stage == "screen64":
+        method = "median"
+        reducer = statistics.median
+    else:
+        method = "mean" if stage == "screen256" else "single_run"
+        reducer = statistics.fmean
+    return method, {key: reducer(series) for key, series in values.items()}
+
+
 def run_combo(
     stage: str,
-    combo: str,
+    candidate: Candidate,
     manifest_path: Path,
     repeats: int,
     result_path: Path,
@@ -383,7 +456,7 @@ def run_combo(
     manifest = parse_manifest(manifest_path)
     samples = load_samples_for_manifest(manifest, DATASET_EN, DATASET_CN)
     tqdm.write(
-        f"[{stage}] {combo}: 加载模型，{len(samples)} 条 × {repeats} 次"
+        f"[{stage}] {candidate.name}: 加载模型，{len(samples)} 条 × {repeats} 次"
     )
 
     started = time.perf_counter()
@@ -391,14 +464,16 @@ def run_combo(
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     load_seconds = time.perf_counter() - started
-    quantization = apply_torchao_quantization(model._model, combo)
+    quantization = apply_torchao_quantization(model._model, candidate)
+    model._model.compile(mode=COMPILE_MODE, dynamic=COMPILE_DYNAMIC)
     initialization_peak_gpu = (
         int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
     )
 
+    compile_warmup_started = time.perf_counter()
     for sample in tqdm(
         samples[:WARMUP_SAMPLES],
-        desc=f"{combo} 预热",
+        desc=f"{candidate.name} 预热",
         unit="条",
         leave=False,
     ):
@@ -410,6 +485,9 @@ def run_combo(
             generation_config=fixed_generation_config(),
             sample_id=sample.sample_id,
         )
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    compile_warmup_seconds = time.perf_counter() - compile_warmup_started
 
     runs: list[dict[str, Any]] = []
     for repeat in range(1, repeats + 1):
@@ -422,7 +500,7 @@ def run_combo(
         progress = tqdm(
             samples,
             desc=(
-                f"{stage} {combo} 第 {repeat}/{repeats} 次"
+                f"{stage} {candidate.name} 第 {repeat}/{repeats} 次"
             ),
             unit="条",
             dynamic_ncols=True,
@@ -489,31 +567,38 @@ def run_combo(
             }
         )
 
-    aggregate = {
-        "accuracy": statistics.median([run["accuracy"] for run in runs]),
-        "avg_ttft_ms": statistics.median([run["avg_ttft_ms"] for run in runs]),
-        "avg_throughput_tokens_per_sec": statistics.median(
-            [run["avg_throughput_tokens_per_sec"] for run in runs]
-        ),
-    }
+    aggregate_method, aggregate = aggregate_runs(stage, runs)
     payload = {
         "stage": stage,
-        "combo": combo,
+        "candidate": candidate.name,
+        "scheme": candidate.scheme,
+        "combo": candidate.combo,
         "sample_count": len(samples),
         "repeats": repeats,
+        "aggregate_method": aggregate_method,
         "aggregate": aggregate,
         "runs": runs,
         "quantization": quantization,
+        "compilation": {
+            "backend": "inductor",
+            "mode": COMPILE_MODE,
+            "dynamic": COMPILE_DYNAMIC,
+        },
         "environment": {
             "python": sys.version,
             "torch": torch.__version__,
             "transformers": transformers.__version__,
             "cuda": torch.version.cuda,
-            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            "gpu": (
+                torch.cuda.get_device_name(torch.cuda.current_device())
+                if torch.cuda.is_available()
+                else None
+            ),
         },
         "timing": {
             "model_load_seconds": load_seconds,
             "quantization_seconds": quantization["quantization_seconds"],
+            "compile_warmup_seconds": compile_warmup_seconds,
         },
         "memory": {
             "initialization_peak_gpu_allocated_bytes": initialization_peak_gpu,
@@ -525,7 +610,7 @@ def run_combo(
     }
     save_json(result_path, payload)
     tqdm.write(
-        f"[{stage}] {combo} 完成："
+        f"[{stage}] {candidate.name} 完成："
         f"accuracy={aggregate['accuracy']:.4f}, "
         f"TTFT={aggregate['avg_ttft_ms']:.2f}ms, "
         f"throughput={aggregate['avg_throughput_tokens_per_sec']:.2f} tok/s"
@@ -536,28 +621,49 @@ def run_combo(
         torch.cuda.empty_cache()
 
 
+def final_score_max_ref(
+    metrics: dict[str, Any], normalization: dict[str, float]
+) -> float:
+    return (
+        (metrics["accuracy"] - normalization["min_accuracy"])
+        / (normalization["max_accuracy"] - normalization["min_accuracy"])
+        * 4
+        - metrics["avg_ttft_ms"] / normalization["min_avg_ttft_ms"] * 3
+        + metrics["avg_throughput_tokens_per_sec"]
+        / normalization["max_avg_throughput_tokens_per_sec"]
+        * 3
+    )
+
+
 def rank_stage(
     stage: str,
-    combos: list[str],
+    candidates: list[Candidate],
     manifest_path: Path,
-    use_accuracy_gate: bool,
+    accuracy_gate_tolerance: float | None,
 ) -> dict[str, Any]:
     manifest = parse_manifest(manifest_path)
-    baseline_accuracy = (
-        baseline_accuracy_for_manifest(manifest, BASELINE_EN, BASELINE_CN)
-        if use_accuracy_gate
+    baseline = (
+        baseline_metrics_for_manifest(manifest, BASELINE_EN, BASELINE_CN)
+        if accuracy_gate_tolerance is not None
         else None
     )
+    gate_threshold = (
+        baseline["accuracy"] - accuracy_gate_tolerance if baseline else None
+    )
     rows: list[dict[str, Any]] = []
-    for combo in combos:
-        aggregate = load_json(OUTPUT_DIR / stage / f"{combo}.json")["aggregate"]
+    for candidate in candidates:
+        aggregate = load_json(
+            OUTPUT_DIR / stage / f"{candidate.name}.json"
+        )["aggregate"]
         gate_passed = (
-            baseline_accuracy is None
-            or aggregate["accuracy"] >= baseline_accuracy - 0.02
+            gate_threshold is None
+            or aggregate["accuracy"] >= gate_threshold
         )
         rows.append(
             {
-                "combo": combo,
+                "candidate": candidate.name,
+                "scheme": candidate.scheme,
+                "combo": candidate.combo,
                 **aggregate,
                 "accuracy_gate_passed": gate_passed,
             }
@@ -568,19 +674,38 @@ def rank_stage(
     min_accuracy = min(row["accuracy"] for row in eligible)
     min_ttft = min(row["avg_ttft_ms"] for row in eligible)
     max_throughput = max(row["avg_throughput_tokens_per_sec"] for row in eligible)
+    normalization = {
+        "max_accuracy": max_accuracy,
+        "min_accuracy": min_accuracy,
+        "min_avg_ttft_ms": min_ttft,
+        "max_avg_throughput_tokens_per_sec": max_throughput,
+    }
     for row in rows:
         row["final_score_max_ref"] = (
-            (row["accuracy"] - min_accuracy) / (max_accuracy - min_accuracy) * 4
-            - row["avg_ttft_ms"] / min_ttft * 3
-            + row["avg_throughput_tokens_per_sec"] / max_throughput * 3
+            final_score_max_ref(row, normalization)
             if row["accuracy_gate_passed"]
             else None
         )
 
+    baseline_reference = (
+        {
+            **baseline,
+            "final_score_max_ref": final_score_max_ref(baseline, normalization),
+            "included_in_normalization": False,
+            "included_in_ranking": False,
+        }
+        if baseline
+        else None
+    )
+
     rows.sort(
         key=lambda row: (
             row["accuracy_gate_passed"],
-            row["final_score_max_ref"] or -math.inf,
+            (
+                row["final_score_max_ref"]
+                if row["final_score_max_ref"] is not None
+                else -math.inf
+            ),
             row["accuracy"],
             -row["avg_ttft_ms"],
             row["avg_throughput_tokens_per_sec"],
@@ -598,12 +723,11 @@ def rank_stage(
     ranking = {
         "stage": stage,
         "sample_count": len(manifest),
-        "baseline_accuracy": baseline_accuracy,
+        "accuracy_gate_tolerance": accuracy_gate_tolerance,
+        "accuracy_gate_threshold": gate_threshold,
+        "baseline_reference": baseline_reference,
         "normalization": {
-            "max_accuracy": max_accuracy,
-            "min_accuracy": min_accuracy,
-            "min_avg_ttft_ms": min_ttft,
-            "max_avg_throughput_tokens_per_sec": max_throughput,
+            **normalization,
             "baseline_included": False,
         },
         "ranking": rows,
@@ -616,7 +740,7 @@ def rank_stage(
 def print_ranking(ranking: dict[str, Any]) -> None:
     print(f"\n[{ranking['stage']}] 双语综合排名")
     print(
-        f"{'Rank':>4}  {'Combo':<7} {'Gate':<4} {'Accuracy':>9} "
+        f"{'Rank':>4}  {'Candidate':<18} {'Gate':<4} {'Accuracy':>9} "
         f"{'TTFT(ms)':>10} {'Tok/s':>9} {'MaxRef':>9}"
     )
     for row in ranking["ranking"]:
@@ -626,7 +750,7 @@ def print_ranking(ranking: dict[str, Any]) -> None:
             else "-"
         )
         print(
-            f"{str(row['rank'] or '-'):>4}  {row['combo']:<7} "
+            f"{str(row['rank'] or '-'):>4}  {row['candidate']:<18} "
             f"{('yes' if row['accuracy_gate_passed'] else 'no'):<4} "
             f"{row['accuracy']:>9.5f} {row['avg_ttft_ms']:>10.2f} "
             f"{row['avg_throughput_tokens_per_sec']:>9.2f} {score:>9}"
@@ -634,9 +758,9 @@ def print_ranking(ranking: dict[str, Any]) -> None:
     print()
 
 
-def promoted_combos(ranking: dict[str, Any], count: int) -> list[str]:
+def promoted_candidates(ranking: dict[str, Any], count: int) -> list[Candidate]:
     return [
-        row["combo"]
+        Candidate(row["scheme"], row["combo"])
         for row in ranking["ranking"]
         if row["accuracy_gate_passed"]
     ][:count]
@@ -644,23 +768,25 @@ def promoted_combos(ranking: dict[str, Any], count: int) -> list[str]:
 
 def run_stage(
     stage: str,
-    combos: list[str],
+    candidates: list[Candidate],
     manifest_path: Path,
     repeats: int,
-    use_accuracy_gate: bool,
+    accuracy_gate_tolerance: float | None,
 ) -> dict[str, Any]:
     output_dir = OUTPUT_DIR / stage
     output_dir.mkdir(parents=True, exist_ok=True)
     sample_count = len(parse_manifest(manifest_path))
-    progress = tqdm(combos, desc=f"{stage} 组合", unit="组")
-    for combo in progress:
-        result_path = output_dir / f"{combo}.json"
-        progress.set_postfix_str(combo)
+    progress = tqdm(candidates, desc=f"{stage} 组合", unit="组")
+    for candidate in progress:
+        result_path = output_dir / f"{candidate.name}.json"
+        progress.set_postfix_str(candidate.name)
         tqdm.write(
-            f"\n[{stage}] 开始 {combo}：{sample_count} 条 × {repeats} 次"
+            f"\n[{stage}] 开始 {candidate.name}：{sample_count} 条 × {repeats} 次"
         )
-        run_combo(stage, combo, manifest_path, repeats, result_path)
-    return rank_stage(stage, combos, manifest_path, use_accuracy_gate)
+        run_combo(stage, candidate, manifest_path, repeats, result_path)
+    return rank_stage(
+        stage, candidates, manifest_path, accuracy_gate_tolerance
+    )
 
 
 def discover_linear_shapes(model_path: Path) -> list[dict[str, Any]]:
@@ -695,10 +821,10 @@ def discover_linear_shapes(model_path: Path) -> list[dict[str, Any]]:
 def cuda_latencies_ms(module: Any, inputs: Any, warmup: int, repeats: int) -> list[float]:
     import torch
 
-    with torch.inference_mode():
+    with torch.cuda.device(inputs.device), torch.inference_mode():
         for _ in range(warmup):
             module(inputs)
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(inputs.device)
         events = []
         for _ in range(repeats):
             start = torch.cuda.Event(enable_timing=True)
@@ -707,29 +833,39 @@ def cuda_latencies_ms(module: Any, inputs: Any, warmup: int, repeats: int) -> li
             module(inputs)
             end.record()
             events.append((start, end))
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(inputs.device)
     return [start.elapsed_time(end) for start, end in events]
+
+
+def execution_path(module: Any) -> str:
+    if getattr(module[0].weight, "act_quant_kwargs", None) is not None:
+        return "dynamic_int8_activation_x_int8_weight_gemm"
+    return "int8_weight_to_bfloat16_then_bfloat16_gemm"
 
 
 def run_microbenchmark() -> None:
     import torch
 
-    quantize_, Int8WeightOnlyConfig, torchao_version = torchao_api()
+    quantize_, config_types, torchao_version = torchao_api()
+    device = DEVICE if DEVICE != "auto" else "cuda"
     shapes = discover_linear_shapes(MODEL_PATH)
     cases = [
-        (shape, tokens)
+        (scheme, shape, tokens)
+        for scheme in QUANTIZATION_SCHEMES
         for shape in shapes
         for tokens in ((256, 1024) if shape["group"] == "V" else (1, 128))
     ]
 
     results = []
-    for shape, tokens in tqdm(cases, desc="W8A16 等形状微基准", unit="组"):
+    for scheme, shape, tokens in tqdm(
+        cases, desc="W8A16/W8A8 等形状微基准", unit="组"
+    ):
         dense = torch.nn.Sequential(
             torch.nn.Linear(
                 shape["in_features"],
                 shape["out_features"],
                 bias=False,
-                device="cuda",
+                device=device,
                 dtype=torch.bfloat16,
             )
         ).eval()
@@ -738,16 +874,28 @@ def run_microbenchmark() -> None:
                 shape["in_features"],
                 shape["out_features"],
                 bias=False,
-                device="cuda",
+                device=device,
                 dtype=torch.bfloat16,
             )
         ).eval()
         quantized[0].weight.data.copy_(dense[0].weight.data)
-        quantize_(quantized, Int8WeightOnlyConfig())
+        config = config_types[scheme]()
+        quantize_(quantized, config)
+        path = execution_path(quantized)
+        weight_type = (
+            f"{type(quantized[0].weight).__module__}."
+            f"{type(quantized[0].weight).__name__}"
+        )
+        torch.compiler.reset()
+        quantized = torch.compile(
+            quantized,
+            mode=COMPILE_MODE,
+            dynamic=COMPILE_DYNAMIC,
+        )
         inputs = torch.randn(
             tokens,
             shape["in_features"],
-            device="cuda",
+            device=device,
             dtype=torch.bfloat16,
         )
 
@@ -762,76 +910,90 @@ def run_microbenchmark() -> None:
         results.append(
             {
                 **shape,
+                "scheme": scheme,
+                "backend": f"torchao.{type(config).__name__}",
                 "tokens": tokens,
                 "dense_median_ms": dense_median,
                 "dense_p90_ms": percentile(dense_ms, 0.90),
-                "w8a16_median_ms": quantized_median,
-                "w8a16_p90_ms": percentile(quantized_ms, 0.90),
+                "quantized_median_ms": quantized_median,
+                "quantized_p90_ms": percentile(quantized_ms, 0.90),
                 "median_speedup": dense_median / quantized_median,
-                "quantized_weight_type": (
-                    f"{type(quantized[0].weight).__module__}."
-                    f"{type(quantized[0].weight).__name__}"
-                ),
+                "execution_path": path,
+                "quantized_weight_type": weight_type,
             }
         )
         del dense, quantized, inputs
         torch.cuda.empty_cache()
 
+    torch.compiler.reset()
     save_json(
         OUTPUT_DIR / "microbenchmark.json",
         {
-            "backend": "torchao.Int8WeightOnlyConfig",
+            "schemes": list(QUANTIZATION_SCHEMES),
             "torchao_version": torchao_version,
             "torch": torch.__version__,
             "cuda": torch.version.cuda,
-            "gpu": torch.cuda.get_device_name(0),
+            "device": str(device),
+            "gpu": torch.cuda.get_device_name(torch.device(device)),
             "warmup": MICROBENCH_WARMUP,
             "repeats": MICROBENCH_REPEATS,
+            "quantized_compile": {
+                "backend": "inductor",
+                "mode": COMPILE_MODE,
+                "dynamic": COMPILE_DYNAMIC,
+            },
             "results": results,
         },
     )
-    tqdm.write(
-        f"[microbenchmark] 完成 {len(results)} 组，speedup="
-        f"{min(row['median_speedup'] for row in results):.3f}x–"
-        f"{max(row['median_speedup'] for row in results):.3f}x"
-    )
+    for scheme in QUANTIZATION_SCHEMES:
+        speedups = [
+            row["median_speedup"] for row in results if row["scheme"] == scheme
+        ]
+        tqdm.write(
+            f"[microbenchmark] {scheme} 完成 {len(speedups)} 组，speedup="
+            f"{min(speedups):.3f}x–{max(speedups):.3f}x"
+        )
 
 
 def main() -> None:
+    import torch
+
+    if DEVICE != "auto":
+        torch.cuda.set_device(DEVICE)
     manifests = build_manifests()
     torchao_api()
     run_microbenchmark()
 
     ranking64 = run_stage(
         "screen64",
-        list(COMBINATIONS),
+        list(CANDIDATES),
         manifests["screen64"],
         SCREEN64_REPEATS,
-        use_accuracy_gate=False,
+        accuracy_gate_tolerance=0.10,
     )
 
-    top6 = promoted_combos(ranking64, 6)
+    top6 = promoted_candidates(ranking64, 6)
     ranking256 = run_stage(
         "screen256",
         top6,
         manifests["screen256"],
         SCREEN256_REPEATS,
-        use_accuracy_gate=True,
+        accuracy_gate_tolerance=0.02,
     )
 
-    top3 = promoted_combos(ranking256, 3)
+    top3 = promoted_candidates(ranking256, 3)
     final_ranking = run_stage(
         "full",
         top3,
         manifests["full"],
         FULL_REPEATS,
-        use_accuracy_gate=True,
+        accuracy_gate_tolerance=0.02,
     )
     save_json(
         OUTPUT_DIR / "final_summary.json",
         {
-            "screen64_promoted": top6,
-            "screen256_promoted": top3,
+            "screen64_promoted": [asdict(candidate) for candidate in top6],
+            "screen256_promoted": [asdict(candidate) for candidate in top3],
             "final_ranking": final_ranking,
         },
     )

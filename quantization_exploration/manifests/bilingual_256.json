@@ -1,0 +1,1031 @@
+{
+  "stage": "screen256",
+  "seed": 20260625,
+  "sample_count": 256,
+  "entries": [
+    {
+      "language": "en",
+      "sample_id": "764"
+    },
+    {
+      "language": "cn",
+      "sample_id": "764"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000548"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000548"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001129"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001129"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001355"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001355"
+    },
+    {
+      "language": "en",
+      "sample_id": "480"
+    },
+    {
+      "language": "cn",
+      "sample_id": "480"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001257"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001257"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001922"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001922"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001605"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001605"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000095"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000095"
+    },
+    {
+      "language": "en",
+      "sample_id": "1948"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1948"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001685"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001685"
+    },
+    {
+      "language": "en",
+      "sample_id": "795"
+    },
+    {
+      "language": "cn",
+      "sample_id": "795"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000313"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000313"
+    },
+    {
+      "language": "en",
+      "sample_id": "1295"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1295"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001741"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001741"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001812"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001812"
+    },
+    {
+      "language": "en",
+      "sample_id": "45"
+    },
+    {
+      "language": "cn",
+      "sample_id": "45"
+    },
+    {
+      "language": "en",
+      "sample_id": "9"
+    },
+    {
+      "language": "cn",
+      "sample_id": "9"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001143"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001143"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001406"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001406"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000223"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000223"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000414"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000414"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000672"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000672"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001544"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001544"
+    },
+    {
+      "language": "en",
+      "sample_id": "1066"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1066"
+    },
+    {
+      "language": "en",
+      "sample_id": "1275"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1275"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001549"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001549"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000216"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000216"
+    },
+    {
+      "language": "en",
+      "sample_id": "1351"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1351"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000553"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000553"
+    },
+    {
+      "language": "en",
+      "sample_id": "1965"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1965"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001516"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001516"
+    },
+    {
+      "language": "en",
+      "sample_id": "146"
+    },
+    {
+      "language": "cn",
+      "sample_id": "146"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000465"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000465"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001397"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001397"
+    },
+    {
+      "language": "en",
+      "sample_id": "1189"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1189"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000556"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000556"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001294"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001294"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001312"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001312"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001078"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001078"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001769"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001769"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001324"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001324"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001843"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001843"
+    },
+    {
+      "language": "en",
+      "sample_id": "1459"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1459"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000710"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000710"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001180"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001180"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001794"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001794"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001760"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001760"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000662"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000662"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001655"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001655"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001853"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001853"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001940"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001940"
+    },
+    {
+      "language": "en",
+      "sample_id": "846"
+    },
+    {
+      "language": "cn",
+      "sample_id": "846"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000967"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000967"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001389"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001389"
+    },
+    {
+      "language": "en",
+      "sample_id": "977"
+    },
+    {
+      "language": "cn",
+      "sample_id": "977"
+    },
+    {
+      "language": "en",
+      "sample_id": "1753"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1753"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000928"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000928"
+    },
+    {
+      "language": "en",
+      "sample_id": "469"
+    },
+    {
+      "language": "cn",
+      "sample_id": "469"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000694"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000694"
+    },
+    {
+      "language": "en",
+      "sample_id": "1917"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1917"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001205"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001205"
+    },
+    {
+      "language": "en",
+      "sample_id": "1862"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1862"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000337"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000337"
+    },
+    {
+      "language": "en",
+      "sample_id": "1668"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1668"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000909"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000909"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001880"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001880"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000067"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000067"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000793"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000793"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000356"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000356"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001702"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001702"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001104"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001104"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000879"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000879"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001436"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001436"
+    },
+    {
+      "language": "en",
+      "sample_id": "302"
+    },
+    {
+      "language": "cn",
+      "sample_id": "302"
+    },
+    {
+      "language": "en",
+      "sample_id": "1597"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1597"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000560"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000560"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001877"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001877"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001497"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001497"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001795"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001795"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000456"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000456"
+    },
+    {
+      "language": "en",
+      "sample_id": "1902"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1902"
+    },
+    {
+      "language": "en",
+      "sample_id": "1658"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1658"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001551"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001551"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001426"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001426"
+    },
+    {
+      "language": "en",
+      "sample_id": "975"
+    },
+    {
+      "language": "cn",
+      "sample_id": "975"
+    },
+    {
+      "language": "en",
+      "sample_id": "1200"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1200"
+    },
+    {
+      "language": "en",
+      "sample_id": "388"
+    },
+    {
+      "language": "cn",
+      "sample_id": "388"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001969"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001969"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001107"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001107"
+    },
+    {
+      "language": "en",
+      "sample_id": "1499"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1499"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000055"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000055"
+    },
+    {
+      "language": "en",
+      "sample_id": "1977"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1977"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001911"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001911"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001912"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001912"
+    },
+    {
+      "language": "en",
+      "sample_id": "256"
+    },
+    {
+      "language": "cn",
+      "sample_id": "256"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000690"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000690"
+    },
+    {
+      "language": "en",
+      "sample_id": "598"
+    },
+    {
+      "language": "cn",
+      "sample_id": "598"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001432"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001432"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001160"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001160"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000527"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000527"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001783"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001783"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000199"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000199"
+    },
+    {
+      "language": "en",
+      "sample_id": "1159"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1159"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000941"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000941"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001666"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001666"
+    },
+    {
+      "language": "en",
+      "sample_id": "28"
+    },
+    {
+      "language": "cn",
+      "sample_id": "28"
+    },
+    {
+      "language": "en",
+      "sample_id": "3001683"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3001683"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000629"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000629"
+    },
+    {
+      "language": "en",
+      "sample_id": "1175"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1175"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000788"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000788"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000209"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000209"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001382"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001382"
+    },
+    {
+      "language": "en",
+      "sample_id": "1218"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1218"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000575"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000575"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000300"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000300"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000818"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000818"
+    },
+    {
+      "language": "en",
+      "sample_id": "637"
+    },
+    {
+      "language": "cn",
+      "sample_id": "637"
+    },
+    {
+      "language": "en",
+      "sample_id": "2000145"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2000145"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001056"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001056"
+    },
+    {
+      "language": "en",
+      "sample_id": "1001346"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1001346"
+    },
+    {
+      "language": "en",
+      "sample_id": "901"
+    },
+    {
+      "language": "cn",
+      "sample_id": "901"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001369"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001369"
+    },
+    {
+      "language": "en",
+      "sample_id": "1000689"
+    },
+    {
+      "language": "cn",
+      "sample_id": "1000689"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001013"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001013"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001464"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001464"
+    },
+    {
+      "language": "en",
+      "sample_id": "3000158"
+    },
+    {
+      "language": "cn",
+      "sample_id": "3000158"
+    },
+    {
+      "language": "en",
+      "sample_id": "2001805"
+    },
+    {
+      "language": "cn",
+      "sample_id": "2001805"
+    }
+  ]
+}

@@ -3,3 +3,4 @@ tqdm>=4.66
 accelerate
 torchvision
 Pillow
+triton>=3.5

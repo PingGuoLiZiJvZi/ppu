@@ -1,0 +1,69 @@
+"""CUDA Graph runner for a single-token greedy Qwen3.5 decode step."""
+
+from __future__ import annotations
+
+import torch
+
+from .kernels import lm_head_argmax
+
+
+class GreedyDecodeGraph:
+    """Capture model decode, LM head argmax and autoregressive token feedback.
+
+    The supplied cache must already contain the prefill state and must use
+    static full-attention layers. ``position_ids`` is the first decode token's
+    multimodal position tensor.
+    """
+
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        cache,
+        token: torch.Tensor,
+        position_ids: torch.Tensor,
+        *,
+        fused_lm_head: bool = True,
+    ) -> None:
+        if token.shape[-1] != 1 or token.dtype != torch.long or not token.is_cuda:
+            raise ValueError("token must be a CUDA int64 tensor with sequence length 1")
+        if not position_ids.is_cuda:
+            raise ValueError("position_ids must be on the PPU")
+        self.model = model
+        self.cache = cache
+        self.token = token.clone()
+        self.position_ids = position_ids.clone()
+        self.graph = torch.cuda.CUDAGraph()
+        self.logits = None
+        self.fused_lm_head = fused_lm_head
+
+        torch.cuda.synchronize()
+        with torch.cuda.graph(self.graph):
+            if self.fused_lm_head:
+                outputs = self.model.model(
+                    input_ids=self.token,
+                    attention_mask=None,
+                    position_ids=self.position_ids,
+                    past_key_values=self.cache,
+                    use_cache=True,
+                    return_dict=True,
+                )
+                hidden = outputs.last_hidden_state[:, -1, :].contiguous()
+                next_token = lm_head_argmax(hidden, self.model.lm_head.weight)
+            else:
+                outputs = self.model(
+                    input_ids=self.token,
+                    attention_mask=None,
+                    position_ids=self.position_ids,
+                    past_key_values=self.cache,
+                    use_cache=True,
+                    logits_to_keep=1,
+                    return_dict=True,
+                )
+                self.logits = outputs.logits
+                next_token = self.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+            self.token.copy_(next_token)
+            self.position_ids.add_(1)
+
+    def replay(self) -> torch.Tensor:
+        self.graph.replay()
+        return self.token

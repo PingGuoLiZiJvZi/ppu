@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -102,6 +104,14 @@ class VLMModel:
             torch_dtype=torch.bfloat16,
             device_map=self.device,
         ).eval()
+        self._fusion_stats = {}
+        if os.environ.get("QWEN35_FUSIONS", "1") != "0":
+            bundled_cache = Path(__file__).resolve().parent / "qwen35_fused" / "triton_cache"
+            if bundled_cache.is_dir():
+                os.environ.setdefault("TRITON_CACHE_DIR", str(bundled_cache))
+            from qwen35_fused.integration import apply_fusions
+
+            self._fusion_stats = apply_fusions(self._model)
         self._tokenizer = getattr(self._processor, "tokenizer", None)
 
     def _load_dummy_backend(self, reason: str) -> None:
@@ -114,6 +124,13 @@ class VLMModel:
         prompt: str,
         generation_config: GenerationConfig,
     ) -> GenerationResult:
+        if generation_config.temperature <= 0 and self._fusion_stats:
+            return self._generate_fused_greedy(
+                image=image,
+                prompt=prompt,
+                generation_config=generation_config,
+            )
+
         import torch
         from transformers import TextIteratorStreamer
 
@@ -184,6 +201,121 @@ class VLMModel:
             ttft_seconds=ttft,
             elapsed_seconds=end - start,
             meta={"backend": "transformers"},
+        )
+
+    def _generate_fused_greedy(
+        self,
+        *,
+        image,
+        prompt: str,
+        generation_config: GenerationConfig,
+    ) -> GenerationResult:
+        import torch
+        from transformers.cache_utils import StaticCache
+
+        from qwen35_fused.graph import GreedyDecodeGraph
+        from qwen35_fused.kernels import lm_head_argmax
+
+        messages = [{
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": prompt},
+            ],
+        }]
+        inputs = self._processor.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt",
+        )
+        from qwen35_fused.integration import precompute_vision_kwargs
+
+        precompute_vision_kwargs(self._model, inputs)
+        inputs = inputs.to(self._model.device)
+        input_len = int(inputs.input_ids.shape[-1])
+        max_new_tokens = max(1, int(generation_config.max_new_tokens))
+
+        start = time.perf_counter()
+        cache = StaticCache(
+            config=self._model.config,
+            max_cache_len=input_len + max_new_tokens + 1,
+        )
+        with torch.inference_mode():
+            prefill = self._model.model(
+                **inputs,
+                past_key_values=cache,
+                use_cache=True,
+                return_dict=True,
+            )
+            token = lm_head_argmax(
+                prefill.last_hidden_state[:, -1, :].contiguous(),
+                self._model.lm_head.weight,
+            )
+            first_token = int(token.item())
+            first_token_at = time.perf_counter()
+            generated = [first_token]
+
+            eos = self._model.generation_config.eos_token_id
+            if eos is None:
+                eos_ids: set[int] = set()
+            elif isinstance(eos, (list, tuple)):
+                eos_ids = {int(item) for item in eos}
+            else:
+                eos_ids = {int(eos)}
+
+            first_position = (
+                inputs.attention_mask.long().sum(dim=-1, keepdim=True).unsqueeze(0)
+                + self._model.model.rope_deltas.unsqueeze(0)
+            )
+
+            # One eager decode initializes the decode-only kernels before graph capture.
+            if len(generated) < max_new_tokens and generated[-1] not in eos_ids:
+                decode = self._model.model(
+                    input_ids=token,
+                    attention_mask=None,
+                    position_ids=first_position,
+                    past_key_values=cache,
+                    use_cache=True,
+                    return_dict=True,
+                )
+                token = lm_head_argmax(
+                    decode.last_hidden_state[:, -1, :].contiguous(),
+                    self._model.lm_head.weight,
+                )
+                generated.append(int(token.item()))
+                first_position.add_(1)
+
+            if len(generated) < max_new_tokens and generated[-1] not in eos_ids:
+                runner = GreedyDecodeGraph(
+                    self._model,
+                    cache,
+                    token,
+                    first_position,
+                    fused_lm_head=True,
+                )
+                while len(generated) < max_new_tokens and generated[-1] not in eos_ids:
+                    token = runner.replay()
+                    generated.append(int(token.item()))
+
+        end = time.perf_counter()
+        generated_tensor = torch.tensor(generated, dtype=torch.long)
+        text = self._processor.tokenizer.decode(
+            generated_tensor,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        ).strip()
+        return GenerationResult(
+            text=text,
+            token_count=len(generated),
+            ttft_seconds=first_token_at - start,
+            elapsed_seconds=end - start,
+            meta={
+                "backend": "transformers-fused",
+                "cuda_graph": len(generated) > 2,
+                "fusion_stats": self._fusion_stats,
+            },
         )
 
     def _generate_with_dummy(

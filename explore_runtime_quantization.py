@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explore 30 TorchAO W8A16/W8A8 M/F/L/V candidates with live progress."""
+"""Explore 16 PPU-native A8W8 M/F/L/V candidates with live progress."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+import torch
 from tqdm.auto import tqdm
 
 from benchmark_public import (
@@ -41,7 +42,7 @@ DATASET_CN = ROOT / "datasets/mmbench/mmbench_dev_cn.tsv"
 BASELINE_EN = ROOT / "baseline_full_en.json"
 BASELINE_CN = ROOT / "baseline_full_cn.json"
 OUTPUT_DIR = ROOT / "quantization_exploration"
-DEVICE = "cuda:1"
+DEVICE = "cuda:0"
 SEED = 20260625
 WARMUP_SAMPLES = 2
 SCREEN64_REPEATS = 3
@@ -53,8 +54,9 @@ MICROBENCH_REPEATS = 100
 COMPILE_MODE = "max-autotune"
 COMPILE_DYNAMIC = True
 GROUP_ORDER = "MFLV"
-QUANTIZATION_SCHEMES = ("W8A16", "W8A8")
+QUANTIZATION_SCHEMES = ("PPU_A8W8",)
 COMBINATIONS = (
+    "Q_0000",
     "Q_1000", "Q_0100", "Q_0010", "Q_0001",
     "Q_1100", "Q_1010", "Q_1001", "Q_0110", "Q_0101", "Q_0011",
     "Q_1110", "Q_1101", "Q_1011", "Q_0111",
@@ -103,6 +105,80 @@ CANDIDATES = tuple(
     for scheme in QUANTIZATION_SCHEMES
     for combo in COMBINATIONS
 )
+
+
+_PPU_SCALED_INT8_QUANT: Any | None = None
+_PPU_INT8_GEMM: Any | None = None
+
+
+def ppu_a8w8_api() -> tuple[Any, Any, str]:
+    global _PPU_SCALED_INT8_QUANT, _PPU_INT8_GEMM
+
+    import acext
+    from vllm import _custom_ops as vllm_ops
+    from vllm.model_executor.layers.quantization.kernels.scaled_mm import cutlass
+
+    if acext.int8_gemm is None:
+        raise RuntimeError("acext.int8_gemm 未注册，无法执行 PPU 原生 A8W8")
+    _PPU_SCALED_INT8_QUANT = vllm_ops.scaled_int8_quant
+    _PPU_INT8_GEMM = torch.ops.vllm.w8a8_int8_matmul_acext
+    version = str(acext.get_version()) if acext.get_version is not None else "unknown"
+    return _PPU_SCALED_INT8_QUANT, _PPU_INT8_GEMM, version
+
+
+class PPUA8W8Linear(torch.nn.Module):
+    """Dynamic per-token activation and per-output-channel weight A8W8 Linear."""
+
+    def __init__(self, linear: torch.nn.Linear) -> None:
+        super().__init__()
+        if linear.in_features % 16 or linear.out_features % 16:
+            raise ValueError(
+                "acext.int8_gemm 要求 in_features/out_features 均为 16 的倍数，"
+                f"得到 {linear.in_features}->{linear.out_features}"
+            )
+
+        self.in_features = linear.in_features
+        self.out_features = linear.out_features
+        with torch.no_grad():
+            weight = linear.weight.detach().to(torch.float32)
+            absmax = weight.abs().amax(dim=1, keepdim=True)
+            weight_scale = torch.where(
+                absmax > 0,
+                absmax / 127.0,
+                torch.ones_like(absmax),
+            )
+            quantized_weight = (
+                torch.round(weight / weight_scale)
+                .clamp_(-127, 127)
+                .to(torch.int8)
+                .contiguous()
+            )
+
+        self.register_buffer("weight", quantized_weight)
+        self.register_buffer("weight_scale", weight_scale.contiguous())
+        self.register_parameter("bias", linear.bias)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        if _PPU_SCALED_INT8_QUANT is None or _PPU_INT8_GEMM is None:
+            raise RuntimeError("PPU A8W8 API 尚未初始化")
+
+        original_shape = inputs.shape
+        inputs_2d = inputs.reshape(-1, self.in_features).contiguous()
+        quantized_inputs, input_scale, _ = _PPU_SCALED_INT8_QUANT(
+            inputs_2d,
+            scale=None,
+            azp=None,
+            symmetric=True,
+        )
+        outputs = _PPU_INT8_GEMM(
+            quantized_inputs,
+            self.weight,
+            input_scale,
+            self.weight_scale,
+            inputs.dtype,
+            self.bias,
+        )
+        return outputs.reshape(*original_shape[:-1], self.out_features)
 
 
 @dataclass
@@ -316,40 +392,22 @@ def baseline_metrics_for_manifest(
     }
 
 
-def torchao_api() -> tuple[Any, dict[str, Any], str]:
-    import torchao
-    from torchao.quantization import (
-        Int8DynamicActivationInt8WeightConfig,
-        Int8WeightOnlyConfig,
-        quantize_,
-    )
-
-    return (
-        quantize_,
-        {
-            "W8A16": Int8WeightOnlyConfig,
-            "W8A8": Int8DynamicActivationInt8WeightConfig,
-        },
-        torchao.__version__,
-    )
-
-
-def apply_torchao_quantization(
+def apply_ppu_a8w8_quantization(
     model: Any, candidate: Candidate
 ) -> dict[str, Any]:
-    import torch
+    if candidate.scheme != "PPU_A8W8":
+        raise ValueError(f"不支持的量化方案：{candidate.scheme}")
 
-    quantize_, config_types, torchao_version = torchao_api()
-    config = config_types[candidate.scheme]()
+    _, _, acext_version = ppu_a8w8_api()
     active_groups = combo_groups(candidate.combo)
     selected_names: set[str] = set()
     counts = {group: 0 for group in GROUP_ORDER}
-    selected_modules: list[Any] = []
+    selected_modules: list[tuple[str, torch.nn.Linear]] = []
     for name, module in model.named_modules():
         group = classify_fqn(name)
         if group in active_groups and isinstance(module, torch.nn.Linear):
             selected_names.add(name)
-            selected_modules.append(module)
+            selected_modules.append((name, module))
             counts[group] += 1
 
     for group in active_groups:
@@ -359,25 +417,33 @@ def apply_torchao_quantization(
                 f"预期 {EXPECTED_MODULE_COUNTS[group]} 个"
             )
 
-    def filter_fn(module: Any, fqn: str) -> bool:
-        return isinstance(module, torch.nn.Linear) and fqn in selected_names
-
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     started = time.perf_counter()
-    quantize_(model, config, filter_fn=filter_fn)
+    quantized_modules: list[PPUA8W8Linear] = []
+    for name, module in selected_modules:
+        parent_name, child_name = name.rsplit(".", 1)
+        parent = model.get_submodule(parent_name)
+        quantized = PPUA8W8Linear(module)
+        setattr(parent, child_name, quantized)
+        quantized_modules.append(quantized)
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
     weight_types: dict[str, int] = defaultdict(int)
-    for module in selected_modules:
-        name = f"{type(module.weight).__module__}.{type(module.weight).__name__}"
-        weight_types[name] += 1
+    for module in quantized_modules:
+        weight_types[str(module.weight.dtype)] += 1
 
     return {
         "scheme": candidate.scheme,
-        "backend": f"torchao.{type(config).__name__}",
-        "torchao_version": torchao_version,
+        "backend": (
+            "bf16_control"
+            if not active_groups
+            else "vllm.scaled_int8_quant+acext.int8_gemm"
+        ),
+        "acext_version": acext_version,
+        "activation_quantization": "dynamic_symmetric_per_token_int8",
+        "weight_quantization": "symmetric_per_output_channel_int8",
         "active_groups": sorted(active_groups),
         "module_count": len(selected_names),
         "module_count_by_group": counts,
@@ -464,7 +530,7 @@ def run_combo(
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     load_seconds = time.perf_counter() - started
-    quantization = apply_torchao_quantization(model._model, candidate)
+    quantization = apply_ppu_a8w8_quantization(model._model, candidate)
     model._model.compile(mode=COMPILE_MODE, dynamic=COMPILE_DYNAMIC)
     initialization_peak_gpu = (
         int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
@@ -837,16 +903,8 @@ def cuda_latencies_ms(module: Any, inputs: Any, warmup: int, repeats: int) -> li
     return [start.elapsed_time(end) for start, end in events]
 
 
-def execution_path(module: Any) -> str:
-    if getattr(module[0].weight, "act_quant_kwargs", None) is not None:
-        return "dynamic_int8_activation_x_int8_weight_gemm"
-    return "int8_weight_to_bfloat16_then_bfloat16_gemm"
-
-
 def run_microbenchmark() -> None:
-    import torch
-
-    quantize_, config_types, torchao_version = torchao_api()
+    _, _, acext_version = ppu_a8w8_api()
     device = DEVICE if DEVICE != "auto" else "cuda"
     shapes = discover_linear_shapes(MODEL_PATH)
     cases = [
@@ -858,7 +916,7 @@ def run_microbenchmark() -> None:
 
     results = []
     for scheme, shape, tokens in tqdm(
-        cases, desc="W8A16/W8A8 等形状微基准", unit="组"
+        cases, desc="PPU A8W8 等形状微基准", unit="组"
     ):
         dense = torch.nn.Sequential(
             torch.nn.Linear(
@@ -869,23 +927,17 @@ def run_microbenchmark() -> None:
                 dtype=torch.bfloat16,
             )
         ).eval()
-        quantized = torch.nn.Sequential(
-            torch.nn.Linear(
-                shape["in_features"],
-                shape["out_features"],
-                bias=False,
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        ).eval()
-        quantized[0].weight.data.copy_(dense[0].weight.data)
-        config = config_types[scheme]()
-        quantize_(quantized, config)
-        path = execution_path(quantized)
-        weight_type = (
-            f"{type(quantized[0].weight).__module__}."
-            f"{type(quantized[0].weight).__name__}"
+        source = torch.nn.Linear(
+            shape["in_features"],
+            shape["out_features"],
+            bias=False,
+            device=device,
+            dtype=torch.bfloat16,
         )
+        source.weight.data.copy_(dense[0].weight.data)
+        quantized = torch.nn.Sequential(PPUA8W8Linear(source)).eval()
+        path = "vllm_dynamic_per_token_int8_quant+acext_int8_gemm"
+        weight_type = str(quantized[0].weight.dtype)
         torch.compiler.reset()
         quantized = torch.compile(
             quantized,
@@ -911,7 +963,7 @@ def run_microbenchmark() -> None:
             {
                 **shape,
                 "scheme": scheme,
-                "backend": f"torchao.{type(config).__name__}",
+                "backend": "vllm.scaled_int8_quant+acext.int8_gemm",
                 "tokens": tokens,
                 "dense_median_ms": dense_median,
                 "dense_p90_ms": percentile(dense_ms, 0.90),
@@ -922,7 +974,7 @@ def run_microbenchmark() -> None:
                 "quantized_weight_type": weight_type,
             }
         )
-        del dense, quantized, inputs
+        del dense, source, quantized, inputs
         torch.cuda.empty_cache()
 
     torch.compiler.reset()
@@ -930,7 +982,7 @@ def run_microbenchmark() -> None:
         OUTPUT_DIR / "microbenchmark.json",
         {
             "schemes": list(QUANTIZATION_SCHEMES),
-            "torchao_version": torchao_version,
+            "acext_version": acext_version,
             "torch": torch.__version__,
             "cuda": torch.version.cuda,
             "device": str(device),
@@ -961,7 +1013,7 @@ def main() -> None:
     if DEVICE != "auto":
         torch.cuda.set_device(DEVICE)
     manifests = build_manifests()
-    torchao_api()
+    ppu_a8w8_api()
     run_microbenchmark()
 
     ranking64 = run_stage(

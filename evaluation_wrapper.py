@@ -108,7 +108,7 @@ class VLMModel:
         ).eval()
         self._fusion_stats = {}
         if os.environ.get("QWEN35_FUSIONS", "1") != "0":
-            bundled_cache = Path(__file__).resolve().parent / "qwen35_fused" / "triton_cache"
+            bundled_cache = Path(__file__).resolve().parent / "triton"
             if bundled_cache.is_dir():
                 os.environ.setdefault("TRITON_CACHE_DIR", str(bundled_cache))
             from qwen35_fused.integration import apply_fusions
@@ -126,7 +126,7 @@ class VLMModel:
         prompt: str,
         generation_config: GenerationConfig,
     ) -> GenerationResult:
-        if generation_config.temperature <= 0 and self._fusion_stats:
+        if self._fusion_stats:
             return self._generate_fused_greedy(
                 image=image,
                 prompt=prompt,

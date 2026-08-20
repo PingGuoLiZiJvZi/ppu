@@ -1,6 +1,5 @@
-torchao>=0.17
-tqdm>=4.66
-accelerate
-torchvision
-Pillow
-triton>=3.5
+accelerate>=1.1.0,<2
+torchvision==0.24.0
+
+# Runtime requirement supplied by the PPU SDK:
+# triton==3.5.0+git4328cd8b (PPU build, not upstream PyPI Triton)

@@ -1,0 +1,119 @@
+; ModuleID = 'LLVMDialectModule'
+source_filename = "LLVMDialectModule"
+target datalayout = "e-p3:32:32-p4:32:32-p5:32:32-p6:32:32-p7:32:32-i64:64-i128:128-v16:16-v32:32-n16:32:64"
+
+; Function Attrs: nounwind
+define ptx_kernel void @_attention_gate_mul_kernel(ptr addrspace(1) %0, ptr addrspace(1) %1, ptr addrspace(1) %2, i32 %3, ptr addrspace(1) readnone captures(none) %4, ptr addrspace(1) readnone captures(none) %5) local_unnamed_addr #0 !dbg !6 {
+  %7 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x(), !dbg !9
+  %8 = shl i32 %7, 8, !dbg !10
+  %9 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x(), !dbg !11
+  %10 = shl nuw nsw i32 %9, 1, !dbg !11
+  %11 = and i32 %10, 254, !dbg !11
+  %12 = or disjoint i32 %11, %8, !dbg !12
+  %13 = icmp slt i32 %12, %3, !dbg !13
+  %14 = sdiv i32 %12, 2048, !dbg !14
+  %15 = mul i32 %14, 2048, !dbg !15
+  %.decomposed = sub i32 %12, %15, !dbg !15
+  %.lhs.trunc = trunc nsw i32 %.decomposed to i16, !dbg !16
+  %.lhs.trunc.frozen = freeze i16 %.lhs.trunc, !dbg !16
+  %16 = sdiv i16 %.lhs.trunc.frozen, 256, !dbg !16
+  %.sext = sext i16 %16 to i32, !dbg !16
+  %17 = mul i16 %16, 256, !dbg !17
+  %.decomposed3 = sub i16 %.lhs.trunc.frozen, %17, !dbg !17
+  %18 = sext i32 %12 to i64, !dbg !18
+  %19 = getelementptr bfloat, ptr addrspace(1) %0, i64 %18, !dbg !18
+  %20 = tail call i32 asm sideeffect "mov.u32 $0, $1;\0A\09@$3 ld.global.b32 { $0 }, [ $2 + 0 ];", "=r,r,l,b"(i32 0, ptr addrspace(1) %19, i1 %13) #3, !dbg !19
+  %21 = bitcast i32 %20 to <2 x bfloat>, !dbg !19
+  %22 = mul i32 %14, 5120, !dbg !20
+  %23 = sext i32 %22 to i64, !dbg !21
+  %24 = getelementptr bfloat, ptr addrspace(1) %1, i64 %23, !dbg !21
+  %25 = shl nsw i32 %.sext, 9, !dbg !22
+  %26 = sext i32 %25 to i64, !dbg !23
+  %27 = getelementptr bfloat, ptr addrspace(1) %24, i64 %26, !dbg !23
+  %28 = getelementptr i8, ptr addrspace(1) %27, i64 512, !dbg !24
+  %29 = sext i16 %.decomposed3 to i64, !dbg !25
+  %30 = getelementptr bfloat, ptr addrspace(1) %28, i64 %29, !dbg !25
+  %31 = tail call i32 asm sideeffect "mov.u32 $0, $1;\0A\09@$3 ld.global.b32 { $0 }, [ $2 + 0 ];", "=r,r,l,b"(i32 0, ptr addrspace(1) %30, i1 %13) #3, !dbg !26
+  %32 = bitcast i32 %31 to <2 x bfloat>, !dbg !26
+  %33 = extractelement <2 x bfloat> %32, i64 0, !dbg !26
+  %34 = extractelement <2 x bfloat> %32, i64 1, !dbg !26
+  %35 = fpext bfloat %33 to float, !dbg !27
+  %36 = fpext bfloat %34 to float, !dbg !27
+  %37 = fsub float 0.000000e+00, %35, !dbg !28
+  %38 = fsub float 0.000000e+00, %36, !dbg !28
+  %39 = fmul float %37, 0x3FF7154760000000, !dbg !29
+  %40 = tail call float @llvm.nvvm.ex2.approx.f(float %39), !dbg !29
+  %41 = fmul float %38, 0x3FF7154760000000, !dbg !29
+  %42 = tail call float @llvm.nvvm.ex2.approx.f(float %41), !dbg !29
+  %43 = fadd float %40, 1.000000e+00, !dbg !30
+  %44 = fadd float %42, 1.000000e+00, !dbg !30
+  %45 = tail call float @llvm.nvvm.div.full(float 1.000000e+00, float %43), !dbg !31
+  %46 = tail call float @llvm.nvvm.div.full(float 1.000000e+00, float %44), !dbg !31
+  %47 = getelementptr bfloat, ptr addrspace(1) %2, i64 %18, !dbg !32
+  %48 = insertelement <2 x float> poison, float %45, i64 0, !dbg !33
+  %49 = insertelement <2 x float> %48, float %46, i64 1, !dbg !33
+  %50 = fptrunc <2 x float> %49 to <2 x bfloat>, !dbg !33
+  %51 = fmul <2 x bfloat> %21, %50, !dbg !34
+  %52 = bitcast <2 x bfloat> %51 to i32, !dbg !35
+  tail call void asm sideeffect "@$2 st.global.b32 [ $1 + 0 ], { $0 };", "r,l,b"(i32 %52, ptr addrspace(1) %47, i1 %13) #3, !dbg !35
+  ret void, !dbg !36
+}
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare noundef range(i32 0, 2147483647) i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() #1
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare noundef range(i32 0, 1024) i32 @llvm.nvvm.read.ptx.sreg.tid.x() #1
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn memory(none)
+declare float @llvm.nvvm.ex2.approx.f(float) #2
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn memory(none)
+declare float @llvm.nvvm.div.full(float, float) #2
+
+attributes #0 = { nounwind "nvvm.reqntid"="128" }
+attributes #1 = { mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { mustprogress nocallback nofree nosync nounwind willreturn memory(none) }
+attributes #3 = { nounwind }
+
+!llvm.dbg.cu = !{!0}
+!llvm.module.flags = !{!2, !3}
+!nvvm.annotations = !{!4, !5}
+
+!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "triton", isOptimized: true, runtimeVersion: 0, emissionKind: LineTablesOnly)
+!1 = !DIFile(filename: "kernels.py", directory: "/root/ppu/qwen35_fused")
+!2 = !{i32 2, !"Debug Info Version", i32 3}
+!3 = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+!4 = !{ptr @_attention_gate_mul_kernel, !"reqntidx", i32 128}
+!5 = !{ptr @_attention_gate_mul_kernel, !"smemsize", i32 0}
+!6 = distinct !DISubprogram(name: "_attention_gate_mul_kernel", linkageName: "_attention_gate_mul_kernel", scope: !1, file: !1, line: 204, type: !7, scopeLine: 204, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!7 = !DISubroutineType(cc: DW_CC_normal, types: !8)
+!8 = !{}
+!9 = !DILocation(line: 214, column: 28, scope: !6)
+!10 = !DILocation(line: 214, column: 33, scope: !6)
+!11 = !DILocation(line: 214, column: 54, scope: !6)
+!12 = !DILocation(line: 214, column: 41, scope: !6)
+!13 = !DILocation(line: 215, column: 21, scope: !6)
+!14 = !DILocation(line: 216, column: 23, scope: !6)
+!15 = !DILocation(line: 217, column: 20, scope: !6)
+!16 = !DILocation(line: 218, column: 18, scope: !6)
+!17 = !DILocation(line: 219, column: 21, scope: !6)
+!18 = !DILocation(line: 220, column: 24, scope: !6)
+!19 = !DILocation(line: 220, column: 16, scope: !6)
+!20 = !DILocation(line: 222, column: 29, scope: !6)
+!21 = !DILocation(line: 222, column: 21, scope: !6)
+!22 = !DILocation(line: 222, column: 56, scope: !6)
+!23 = !DILocation(line: 222, column: 45, scope: !6)
+!24 = !DILocation(line: 222, column: 67, scope: !6)
+!25 = !DILocation(line: 222, column: 78, scope: !6)
+!26 = !DILocation(line: 222, column: 8, scope: !6)
+!27 = !DILocation(line: 225, column: 9, scope: !6)
+!28 = !DILocation(line: 226, column: 41, scope: !6)
+!29 = !DILocation(line: 226, column: 40, scope: !6)
+!30 = !DILocation(line: 226, column: 33, scope: !6)
+!31 = !DILocation(line: 226, column: 27, scope: !6)
+!32 = !DILocation(line: 227, column: 23, scope: !6)
+!33 = !DILocation(line: 226, column: 52, scope: !6)
+!34 = !DILocation(line: 227, column: 36, scope: !6)
+!35 = !DILocation(line: 227, column: 32, scope: !6)
+!36 = !DILocation(line: 227, column: 4, scope: !6)

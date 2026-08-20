@@ -1,0 +1,1137 @@
+; ModuleID = 'LLVMDialectModule'
+source_filename = "LLVMDialectModule"
+target datalayout = "e-p3:32:32-p4:32:32-p5:32:32-p6:32:32-p7:32:32-i64:64-i128:128-v16:16-v32:32-n16:32:64"
+
+@global_smem = external addrspace(3) global [0 x i8], align 16
+
+; Function Attrs: nounwind
+define ptx_kernel void @chunk_scaled_dot_kkt_fwd_kernel(ptr addrspace(1) %0, ptr addrspace(1) %1, ptr addrspace(1) %2, ptr addrspace(1) %3, i32 %4, ptr addrspace(1) readnone captures(none) %5, ptr addrspace(1) readnone captures(none) %6) local_unnamed_addr #0 !dbg !6 {
+  %8 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x(), !dbg !9
+  %9 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y(), !dbg !10
+  %10 = and i32 %9, 65520, !dbg !11
+  %11 = and i32 %9, 15, !dbg !12
+  %12 = shl i32 %8, 6, !dbg !13
+  %13 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x(), !dbg !14
+  %14 = lshr i32 %13, 3, !dbg !14
+  %15 = and i32 %14, 15, !dbg !14
+  %16 = or disjoint i32 %15, 16, !dbg !14
+  %17 = or disjoint i32 %15, 32, !dbg !14
+  %18 = or disjoint i32 %15, 48, !dbg !14
+  %19 = and i32 %13, 7, !dbg !14
+  %20 = shl nuw nsw i32 %19, 3, !dbg !14
+  %21 = mul i32 %10, %4, !dbg !15
+  %22 = sext i32 %21 to i64, !dbg !16
+  %23 = getelementptr float, ptr addrspace(1) %1, i64 %22, !dbg !16
+  %24 = zext nneg i32 %11 to i64, !dbg !17
+  %25 = getelementptr float, ptr addrspace(1) %23, i64 %24, !dbg !17
+  %26 = sext i32 %4 to i64, !dbg !18
+  %27 = sext i32 %12 to i64, !dbg !18
+  %28 = zext nneg i32 %15 to i64, !dbg !19
+  %29 = zext nneg i32 %16 to i64, !dbg !19
+  %30 = zext nneg i32 %17 to i64, !dbg !19
+  %31 = zext nneg i32 %18 to i64, !dbg !19
+  %32 = zext nneg i32 %20 to i64, !dbg !19
+  %33 = or disjoint i64 %28, %27, !dbg !19
+  %34 = or disjoint i64 %29, %27, !dbg !19
+  %35 = or disjoint i64 %30, %27, !dbg !19
+  %36 = or disjoint i64 %31, %27, !dbg !19
+  %.idx = shl nsw i64 %33, 6, !dbg !19
+  %37 = getelementptr i8, ptr addrspace(1) %25, i64 %.idx, !dbg !19
+  %.idx1 = shl nsw i64 %34, 6, !dbg !19
+  %38 = getelementptr i8, ptr addrspace(1) %25, i64 %.idx1, !dbg !19
+  %.idx2 = shl nsw i64 %35, 6, !dbg !19
+  %39 = getelementptr i8, ptr addrspace(1) %25, i64 %.idx2, !dbg !19
+  %.idx3 = shl nsw i64 %36, 6, !dbg !19
+  %40 = getelementptr i8, ptr addrspace(1) %25, i64 %.idx3, !dbg !19
+  %41 = icmp sgt i32 %12, -1, !dbg !19
+  %42 = icmp slt i64 %33, %26, !dbg !19
+  %43 = icmp slt i64 %34, %26, !dbg !19
+  %44 = icmp slt i64 %35, %26, !dbg !19
+  %45 = icmp slt i64 %36, %26, !dbg !19
+  %46 = and i1 %41, %42, !dbg !19
+  %47 = and i1 %41, %43, !dbg !19
+  %48 = and i1 %41, %44, !dbg !19
+  %49 = and i1 %41, %45, !dbg !19
+  %50 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %37, i1 %46) #2, !dbg !19
+  %51 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %38, i1 %47) #2, !dbg !19
+  %52 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %39, i1 %48) #2, !dbg !19
+  %53 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %40, i1 %49) #2, !dbg !19
+  %54 = or disjoint i32 %21, %11, !dbg !20
+  %55 = shl i32 %54, 7, !dbg !21
+  %56 = sext i32 %55 to i64, !dbg !22
+  %57 = getelementptr bfloat, ptr addrspace(1) %0, i64 %56, !dbg !22
+  %.idx71 = shl nsw i64 %33, 12, !dbg !23
+  %58 = getelementptr i8, ptr addrspace(1) %57, i64 %.idx71, !dbg !23
+  %59 = getelementptr bfloat, ptr addrspace(1) %58, i64 %32, !dbg !23
+  %.idx72 = shl nsw i64 %34, 12, !dbg !23
+  %60 = getelementptr i8, ptr addrspace(1) %57, i64 %.idx72, !dbg !23
+  %61 = getelementptr bfloat, ptr addrspace(1) %60, i64 %32, !dbg !23
+  %.idx73 = shl nsw i64 %35, 12, !dbg !23
+  %62 = getelementptr i8, ptr addrspace(1) %57, i64 %.idx73, !dbg !23
+  %63 = getelementptr bfloat, ptr addrspace(1) %62, i64 %32, !dbg !23
+  %.idx74 = shl nsw i64 %36, 12, !dbg !23
+  %64 = getelementptr i8, ptr addrspace(1) %57, i64 %.idx74, !dbg !23
+  %65 = getelementptr bfloat, ptr addrspace(1) %64, i64 %32, !dbg !23
+  %66 = shl nuw nsw i32 %13, 4, !dbg !23
+  %67 = and i32 %66, 2032, !dbg !23
+  %68 = shl nuw nsw i32 %13, 1, !dbg !23
+  %69 = and i32 %68, 112, !dbg !23
+  %70 = xor i32 %67, %69, !dbg !23
+  %71 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %70, !dbg !23
+  %72 = select i1 %46, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) %71, ptr addrspace(1) %59, i32 %72) #2, !dbg !23
+  %73 = or disjoint i32 %70, 2048, !dbg !23
+  %74 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %73, !dbg !23
+  %75 = select i1 %47, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) nonnull %74, ptr addrspace(1) %61, i32 %75) #2, !dbg !23
+  %76 = or disjoint i32 %70, 4096, !dbg !23
+  %77 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %76, !dbg !23
+  %78 = select i1 %48, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) nonnull %77, ptr addrspace(1) %63, i32 %78) #2, !dbg !23
+  %79 = or disjoint i32 %70, 6144, !dbg !23
+  %80 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %79, !dbg !23
+  %81 = select i1 %49, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) nonnull %80, ptr addrspace(1) %65, i32 %81) #2, !dbg !23
+  tail call void @llvm.nvvm.cp.async.commit.group(), !dbg !23
+  %82 = getelementptr inbounds nuw i8, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %70
+  %83 = getelementptr inbounds nuw i8, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %73
+  %84 = getelementptr inbounds nuw i8, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %76
+  %85 = getelementptr inbounds nuw i8, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %79
+  %86 = shl nuw nsw i32 %19, 6
+  %87 = and i32 %13, 8
+  %88 = shl nuw nsw i32 %13, 5
+  %89 = and i32 %88, 512
+  %90 = and i32 %66, 1024
+  %91 = or disjoint i32 %89, %90
+  %92 = or disjoint i32 %86, %20
+  %93 = xor i32 %92, %87
+  %94 = or disjoint i32 %91, %93
+  %95 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %94
+  %96 = ptrtoint ptr addrspace(3) %95 to i32
+  %97 = xor i32 %94, 16
+  %98 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %97
+  %99 = ptrtoint ptr addrspace(3) %98 to i32
+  %100 = xor i32 %94, 32
+  %101 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %100
+  %102 = ptrtoint ptr addrspace(3) %101 to i32
+  %103 = xor i32 %94, 48
+  %104 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %103
+  %105 = ptrtoint ptr addrspace(3) %104 to i32
+  %106 = getelementptr inbounds nuw i8, ptr addrspace(3) %95, i32 4096
+  %107 = ptrtoint ptr addrspace(3) %106 to i32
+  %108 = xor i32 %94, 2064
+  %109 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %108
+  %110 = ptrtoint ptr addrspace(3) %109 to i32
+  %111 = xor i32 %94, 2080
+  %112 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %111
+  %113 = ptrtoint ptr addrspace(3) %112 to i32
+  %114 = xor i32 %94, 2096
+  %115 = getelementptr inbounds nuw bfloat, ptr addrspace(3) getelementptr (i8, ptr addrspace(3) @global_smem, i32 8192), i32 %114
+  %116 = ptrtoint ptr addrspace(3) %115 to i32
+  %117 = and i32 %88, 1536
+  %118 = xor i32 %20, %87
+  %119 = or disjoint i32 %117, %118
+  %120 = or disjoint i32 %119, %86
+  %121 = xor i32 %120, 16
+  %122 = xor i32 %120, 32
+  %123 = xor i32 %120, 48
+  %124 = xor i32 %120, 2064
+  %125 = xor i32 %120, 2080
+  %126 = xor i32 %120, 2096
+  %127 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %70
+  %128 = getelementptr inbounds nuw i8, ptr addrspace(3) %127, i32 4
+  %129 = getelementptr inbounds nuw i8, ptr addrspace(3) %127, i32 8
+  %130 = getelementptr inbounds nuw i8, ptr addrspace(3) %127, i32 12
+  %131 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %73
+  %132 = getelementptr inbounds nuw i8, ptr addrspace(3) %131, i32 4
+  %133 = getelementptr inbounds nuw i8, ptr addrspace(3) %131, i32 8
+  %134 = getelementptr inbounds nuw i8, ptr addrspace(3) %131, i32 12
+  %135 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %76
+  %136 = getelementptr inbounds nuw i8, ptr addrspace(3) %135, i32 4
+  %137 = getelementptr inbounds nuw i8, ptr addrspace(3) %135, i32 8
+  %138 = getelementptr inbounds nuw i8, ptr addrspace(3) %135, i32 12
+  %139 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %79
+  %140 = getelementptr inbounds nuw i8, ptr addrspace(3) %139, i32 4
+  %141 = getelementptr inbounds nuw i8, ptr addrspace(3) %139, i32 8
+  %142 = getelementptr inbounds nuw i8, ptr addrspace(3) %139, i32 12
+  %143 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %120
+  %144 = ptrtoint ptr addrspace(3) %143 to i32
+  %145 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %121
+  %146 = ptrtoint ptr addrspace(3) %145 to i32
+  %147 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %122
+  %148 = ptrtoint ptr addrspace(3) %147 to i32
+  %149 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %123
+  %150 = ptrtoint ptr addrspace(3) %149 to i32
+  %151 = getelementptr inbounds nuw i8, ptr addrspace(3) %143, i32 4096
+  %152 = ptrtoint ptr addrspace(3) %151 to i32
+  %153 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %124
+  %154 = ptrtoint ptr addrspace(3) %153 to i32
+  %155 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %125
+  %156 = ptrtoint ptr addrspace(3) %155 to i32
+  %157 = getelementptr inbounds nuw bfloat, ptr addrspace(3) @global_smem, i32 %126
+  %158 = ptrtoint ptr addrspace(3) %157 to i32
+  %159 = insertelement <2 x i32> poison, i32 %50, i64 0, !dbg !24
+  %160 = bitcast <2 x i32> %159 to <2 x float>, !dbg !24
+  %161 = shufflevector <2 x float> %160, <2 x float> poison, <2 x i32> zeroinitializer, !dbg !24
+  %162 = insertelement <2 x i32> poison, i32 %51, i64 0, !dbg !24
+  %163 = bitcast <2 x i32> %162 to <2 x float>, !dbg !24
+  %164 = shufflevector <2 x float> %163, <2 x float> poison, <2 x i32> zeroinitializer, !dbg !24
+  %165 = insertelement <2 x i32> poison, i32 %52, i64 0, !dbg !24
+  %166 = bitcast <2 x i32> %165 to <2 x float>, !dbg !24
+  %167 = shufflevector <2 x float> %166, <2 x float> poison, <2 x i32> zeroinitializer, !dbg !24
+  %168 = insertelement <2 x i32> poison, i32 %53, i64 0, !dbg !24
+  %169 = bitcast <2 x i32> %168 to <2 x float>, !dbg !24
+  %170 = shufflevector <2 x float> %169, <2 x float> poison, <2 x i32> zeroinitializer, !dbg !24
+  br label %171, !dbg !25
+
+171:                                              ; preds = %7, %171
+  %172 = phi i1 [ true, %7 ], [ false, %171 ]
+  %indvars.iv = phi i64 [ 64, %7 ], [ 128, %171 ]
+  %173 = phi float [ 0.000000e+00, %7 ], [ %490, %171 ]
+  %174 = phi float [ 0.000000e+00, %7 ], [ %491, %171 ]
+  %175 = phi float [ 0.000000e+00, %7 ], [ %492, %171 ]
+  %176 = phi float [ 0.000000e+00, %7 ], [ %493, %171 ]
+  %177 = phi float [ 0.000000e+00, %7 ], [ %494, %171 ]
+  %178 = phi float [ 0.000000e+00, %7 ], [ %495, %171 ]
+  %179 = phi float [ 0.000000e+00, %7 ], [ %496, %171 ]
+  %180 = phi float [ 0.000000e+00, %7 ], [ %497, %171 ]
+  %181 = phi float [ 0.000000e+00, %7 ], [ %499, %171 ]
+  %182 = phi float [ 0.000000e+00, %7 ], [ %500, %171 ]
+  %183 = phi float [ 0.000000e+00, %7 ], [ %501, %171 ]
+  %184 = phi float [ 0.000000e+00, %7 ], [ %502, %171 ]
+  %185 = phi float [ 0.000000e+00, %7 ], [ %503, %171 ]
+  %186 = phi float [ 0.000000e+00, %7 ], [ %504, %171 ]
+  %187 = phi float [ 0.000000e+00, %7 ], [ %505, %171 ]
+  %188 = phi float [ 0.000000e+00, %7 ], [ %506, %171 ]
+  %189 = phi float [ 0.000000e+00, %7 ], [ %508, %171 ]
+  %190 = phi float [ 0.000000e+00, %7 ], [ %509, %171 ]
+  %191 = phi float [ 0.000000e+00, %7 ], [ %510, %171 ]
+  %192 = phi float [ 0.000000e+00, %7 ], [ %511, %171 ]
+  %193 = phi float [ 0.000000e+00, %7 ], [ %512, %171 ]
+  %194 = phi float [ 0.000000e+00, %7 ], [ %513, %171 ]
+  %195 = phi float [ 0.000000e+00, %7 ], [ %514, %171 ]
+  %196 = phi float [ 0.000000e+00, %7 ], [ %515, %171 ]
+  %197 = phi float [ 0.000000e+00, %7 ], [ %517, %171 ]
+  %198 = phi float [ 0.000000e+00, %7 ], [ %518, %171 ]
+  %199 = phi float [ 0.000000e+00, %7 ], [ %519, %171 ]
+  %200 = phi float [ 0.000000e+00, %7 ], [ %520, %171 ]
+  %201 = phi float [ 0.000000e+00, %7 ], [ %521, %171 ]
+  %202 = phi float [ 0.000000e+00, %7 ], [ %522, %171 ]
+  %203 = phi float [ 0.000000e+00, %7 ], [ %523, %171 ]
+  %204 = phi float [ 0.000000e+00, %7 ], [ %524, %171 ]
+  tail call void @llvm.nvvm.cp.async.wait.group(i32 0), !dbg !23
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !23
+  %205 = load <2 x bfloat>, ptr addrspace(3) %127, align 16, !dbg !23
+  %206 = fpext <2 x bfloat> %205 to <2 x float>, !dbg !24
+  %207 = fmul <2 x float> %161, %206, !dbg !24
+  %208 = fptrunc <2 x float> %207 to <2 x bfloat>, !dbg !26
+  %209 = load <2 x bfloat>, ptr addrspace(3) %128, align 4, !dbg !23
+  %210 = fpext <2 x bfloat> %209 to <2 x float>, !dbg !24
+  %211 = fmul <2 x float> %161, %210, !dbg !24
+  %212 = fptrunc <2 x float> %211 to <2 x bfloat>, !dbg !26
+  %213 = load <2 x bfloat>, ptr addrspace(3) %129, align 8, !dbg !23
+  %214 = fpext <2 x bfloat> %213 to <2 x float>, !dbg !24
+  %215 = fmul <2 x float> %161, %214, !dbg !24
+  %216 = fptrunc <2 x float> %215 to <2 x bfloat>, !dbg !26
+  %217 = load <2 x bfloat>, ptr addrspace(3) %130, align 4, !dbg !23
+  %218 = fpext <2 x bfloat> %217 to <2 x float>, !dbg !24
+  %219 = fmul <2 x float> %161, %218, !dbg !24
+  %220 = fptrunc <2 x float> %219 to <2 x bfloat>, !dbg !26
+  %221 = load <2 x bfloat>, ptr addrspace(3) %131, align 16, !dbg !23
+  %222 = fpext <2 x bfloat> %221 to <2 x float>, !dbg !24
+  %223 = fmul <2 x float> %164, %222, !dbg !24
+  %224 = fptrunc <2 x float> %223 to <2 x bfloat>, !dbg !26
+  %225 = load <2 x bfloat>, ptr addrspace(3) %132, align 4, !dbg !23
+  %226 = fpext <2 x bfloat> %225 to <2 x float>, !dbg !24
+  %227 = fmul <2 x float> %164, %226, !dbg !24
+  %228 = fptrunc <2 x float> %227 to <2 x bfloat>, !dbg !26
+  %229 = load <2 x bfloat>, ptr addrspace(3) %133, align 8, !dbg !23
+  %230 = fpext <2 x bfloat> %229 to <2 x float>, !dbg !24
+  %231 = fmul <2 x float> %164, %230, !dbg !24
+  %232 = fptrunc <2 x float> %231 to <2 x bfloat>, !dbg !26
+  %233 = load <2 x bfloat>, ptr addrspace(3) %134, align 4, !dbg !23
+  %234 = fpext <2 x bfloat> %233 to <2 x float>, !dbg !24
+  %235 = fmul <2 x float> %164, %234, !dbg !24
+  %236 = fptrunc <2 x float> %235 to <2 x bfloat>, !dbg !26
+  %237 = load <2 x bfloat>, ptr addrspace(3) %135, align 16, !dbg !23
+  %238 = fpext <2 x bfloat> %237 to <2 x float>, !dbg !24
+  %239 = fmul <2 x float> %167, %238, !dbg !24
+  %240 = fptrunc <2 x float> %239 to <2 x bfloat>, !dbg !26
+  %241 = load <2 x bfloat>, ptr addrspace(3) %136, align 4, !dbg !23
+  %242 = fpext <2 x bfloat> %241 to <2 x float>, !dbg !24
+  %243 = fmul <2 x float> %167, %242, !dbg !24
+  %244 = fptrunc <2 x float> %243 to <2 x bfloat>, !dbg !26
+  %245 = load <2 x bfloat>, ptr addrspace(3) %137, align 8, !dbg !23
+  %246 = fpext <2 x bfloat> %245 to <2 x float>, !dbg !24
+  %247 = fmul <2 x float> %167, %246, !dbg !24
+  %248 = fptrunc <2 x float> %247 to <2 x bfloat>, !dbg !26
+  %249 = load <2 x bfloat>, ptr addrspace(3) %138, align 4, !dbg !23
+  %250 = fpext <2 x bfloat> %249 to <2 x float>, !dbg !24
+  %251 = fmul <2 x float> %167, %250, !dbg !24
+  %252 = fptrunc <2 x float> %251 to <2 x bfloat>, !dbg !26
+  %253 = load <2 x bfloat>, ptr addrspace(3) %139, align 16, !dbg !23
+  %254 = fpext <2 x bfloat> %253 to <2 x float>, !dbg !24
+  %255 = fmul <2 x float> %170, %254, !dbg !24
+  %256 = fptrunc <2 x float> %255 to <2 x bfloat>, !dbg !26
+  %257 = load <2 x bfloat>, ptr addrspace(3) %140, align 4, !dbg !23
+  %258 = fpext <2 x bfloat> %257 to <2 x float>, !dbg !24
+  %259 = fmul <2 x float> %170, %258, !dbg !24
+  %260 = fptrunc <2 x float> %259 to <2 x bfloat>, !dbg !26
+  %261 = load <2 x bfloat>, ptr addrspace(3) %141, align 8, !dbg !23
+  %262 = fpext <2 x bfloat> %261 to <2 x float>, !dbg !24
+  %263 = fmul <2 x float> %170, %262, !dbg !24
+  %264 = fptrunc <2 x float> %263 to <2 x bfloat>, !dbg !26
+  %265 = load <2 x bfloat>, ptr addrspace(3) %142, align 4, !dbg !23
+  %266 = fpext <2 x bfloat> %265 to <2 x float>, !dbg !24
+  %267 = fmul <2 x float> %170, %266, !dbg !24
+  %268 = fptrunc <2 x float> %267 to <2 x bfloat>, !dbg !26
+  %269 = bitcast <2 x bfloat> %208 to i32, !dbg !26
+  %270 = bitcast <2 x bfloat> %212 to i32, !dbg !26
+  %271 = bitcast <2 x bfloat> %216 to i32, !dbg !26
+  %272 = bitcast <2 x bfloat> %220 to i32, !dbg !26
+  %273 = insertelement <4 x i32> poison, i32 %269, i64 0, !dbg !26
+  %274 = insertelement <4 x i32> %273, i32 %270, i64 1, !dbg !26
+  %275 = insertelement <4 x i32> %274, i32 %271, i64 2, !dbg !26
+  %276 = insertelement <4 x i32> %275, i32 %272, i64 3, !dbg !26
+  store <4 x i32> %276, ptr addrspace(3) %82, align 16, !dbg !26
+  %277 = bitcast <2 x bfloat> %224 to i32, !dbg !26
+  %278 = bitcast <2 x bfloat> %228 to i32, !dbg !26
+  %279 = bitcast <2 x bfloat> %232 to i32, !dbg !26
+  %280 = bitcast <2 x bfloat> %236 to i32, !dbg !26
+  %281 = insertelement <4 x i32> poison, i32 %277, i64 0, !dbg !26
+  %282 = insertelement <4 x i32> %281, i32 %278, i64 1, !dbg !26
+  %283 = insertelement <4 x i32> %282, i32 %279, i64 2, !dbg !26
+  %284 = insertelement <4 x i32> %283, i32 %280, i64 3, !dbg !26
+  store <4 x i32> %284, ptr addrspace(3) %83, align 16, !dbg !26
+  %285 = bitcast <2 x bfloat> %240 to i32, !dbg !26
+  %286 = bitcast <2 x bfloat> %244 to i32, !dbg !26
+  %287 = bitcast <2 x bfloat> %248 to i32, !dbg !26
+  %288 = bitcast <2 x bfloat> %252 to i32, !dbg !26
+  %289 = insertelement <4 x i32> poison, i32 %285, i64 0, !dbg !26
+  %290 = insertelement <4 x i32> %289, i32 %286, i64 1, !dbg !26
+  %291 = insertelement <4 x i32> %290, i32 %287, i64 2, !dbg !26
+  %292 = insertelement <4 x i32> %291, i32 %288, i64 3, !dbg !26
+  store <4 x i32> %292, ptr addrspace(3) %84, align 16, !dbg !26
+  %293 = bitcast <2 x bfloat> %256 to i32, !dbg !26
+  %294 = bitcast <2 x bfloat> %260 to i32, !dbg !26
+  %295 = bitcast <2 x bfloat> %264 to i32, !dbg !26
+  %296 = bitcast <2 x bfloat> %268 to i32, !dbg !26
+  %297 = insertelement <4 x i32> poison, i32 %293, i64 0, !dbg !26
+  %298 = insertelement <4 x i32> %297, i32 %294, i64 1, !dbg !26
+  %299 = insertelement <4 x i32> %298, i32 %295, i64 2, !dbg !26
+  %300 = insertelement <4 x i32> %299, i32 %296, i64 3, !dbg !26
+  store <4 x i32> %300, ptr addrspace(3) %85, align 16, !dbg !26
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !26
+  %301 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %96) #2, !dbg !26
+  %302 = extractvalue { i32, i32, i32, i32 } %301, 0, !dbg !26
+  %303 = extractvalue { i32, i32, i32, i32 } %301, 1, !dbg !26
+  %304 = extractvalue { i32, i32, i32, i32 } %301, 2, !dbg !26
+  %305 = extractvalue { i32, i32, i32, i32 } %301, 3, !dbg !26
+  %306 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %99) #2, !dbg !26
+  %307 = extractvalue { i32, i32, i32, i32 } %306, 0, !dbg !26
+  %308 = extractvalue { i32, i32, i32, i32 } %306, 1, !dbg !26
+  %309 = extractvalue { i32, i32, i32, i32 } %306, 2, !dbg !26
+  %310 = extractvalue { i32, i32, i32, i32 } %306, 3, !dbg !26
+  %311 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %102) #2, !dbg !26
+  %312 = extractvalue { i32, i32, i32, i32 } %311, 0, !dbg !26
+  %313 = extractvalue { i32, i32, i32, i32 } %311, 1, !dbg !26
+  %314 = extractvalue { i32, i32, i32, i32 } %311, 2, !dbg !26
+  %315 = extractvalue { i32, i32, i32, i32 } %311, 3, !dbg !26
+  %316 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %105) #2, !dbg !26
+  %317 = extractvalue { i32, i32, i32, i32 } %316, 0, !dbg !26
+  %318 = extractvalue { i32, i32, i32, i32 } %316, 1, !dbg !26
+  %319 = extractvalue { i32, i32, i32, i32 } %316, 2, !dbg !26
+  %320 = extractvalue { i32, i32, i32, i32 } %316, 3, !dbg !26
+  %321 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %107) #2, !dbg !26
+  %322 = extractvalue { i32, i32, i32, i32 } %321, 0, !dbg !26
+  %323 = extractvalue { i32, i32, i32, i32 } %321, 1, !dbg !26
+  %324 = extractvalue { i32, i32, i32, i32 } %321, 2, !dbg !26
+  %325 = extractvalue { i32, i32, i32, i32 } %321, 3, !dbg !26
+  %326 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %110) #2, !dbg !26
+  %327 = extractvalue { i32, i32, i32, i32 } %326, 0, !dbg !26
+  %328 = extractvalue { i32, i32, i32, i32 } %326, 1, !dbg !26
+  %329 = extractvalue { i32, i32, i32, i32 } %326, 2, !dbg !26
+  %330 = extractvalue { i32, i32, i32, i32 } %326, 3, !dbg !26
+  %331 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %113) #2, !dbg !26
+  %332 = extractvalue { i32, i32, i32, i32 } %331, 0, !dbg !26
+  %333 = extractvalue { i32, i32, i32, i32 } %331, 1, !dbg !26
+  %334 = extractvalue { i32, i32, i32, i32 } %331, 2, !dbg !26
+  %335 = extractvalue { i32, i32, i32, i32 } %331, 3, !dbg !26
+  %336 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %116) #2, !dbg !26
+  %337 = extractvalue { i32, i32, i32, i32 } %336, 0, !dbg !26
+  %338 = extractvalue { i32, i32, i32, i32 } %336, 1, !dbg !26
+  %339 = extractvalue { i32, i32, i32, i32 } %336, 2, !dbg !26
+  %340 = extractvalue { i32, i32, i32, i32 } %336, 3, !dbg !26
+  %341 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %144) #2, !dbg !27
+  %342 = extractvalue { i32, i32, i32, i32 } %341, 0, !dbg !27
+  %343 = extractvalue { i32, i32, i32, i32 } %341, 1, !dbg !27
+  %344 = extractvalue { i32, i32, i32, i32 } %341, 2, !dbg !27
+  %345 = extractvalue { i32, i32, i32, i32 } %341, 3, !dbg !27
+  %346 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %146) #2, !dbg !27
+  %347 = extractvalue { i32, i32, i32, i32 } %346, 0, !dbg !27
+  %348 = extractvalue { i32, i32, i32, i32 } %346, 1, !dbg !27
+  %349 = extractvalue { i32, i32, i32, i32 } %346, 2, !dbg !27
+  %350 = extractvalue { i32, i32, i32, i32 } %346, 3, !dbg !27
+  %351 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %148) #2, !dbg !27
+  %352 = extractvalue { i32, i32, i32, i32 } %351, 0, !dbg !27
+  %353 = extractvalue { i32, i32, i32, i32 } %351, 1, !dbg !27
+  %354 = extractvalue { i32, i32, i32, i32 } %351, 2, !dbg !27
+  %355 = extractvalue { i32, i32, i32, i32 } %351, 3, !dbg !27
+  %356 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %150) #2, !dbg !27
+  %357 = extractvalue { i32, i32, i32, i32 } %356, 0, !dbg !27
+  %358 = extractvalue { i32, i32, i32, i32 } %356, 1, !dbg !27
+  %359 = extractvalue { i32, i32, i32, i32 } %356, 2, !dbg !27
+  %360 = extractvalue { i32, i32, i32, i32 } %356, 3, !dbg !27
+  %361 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %152) #2, !dbg !27
+  %362 = extractvalue { i32, i32, i32, i32 } %361, 0, !dbg !27
+  %363 = extractvalue { i32, i32, i32, i32 } %361, 1, !dbg !27
+  %364 = extractvalue { i32, i32, i32, i32 } %361, 2, !dbg !27
+  %365 = extractvalue { i32, i32, i32, i32 } %361, 3, !dbg !27
+  %366 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %154) #2, !dbg !27
+  %367 = extractvalue { i32, i32, i32, i32 } %366, 0, !dbg !27
+  %368 = extractvalue { i32, i32, i32, i32 } %366, 1, !dbg !27
+  %369 = extractvalue { i32, i32, i32, i32 } %366, 2, !dbg !27
+  %370 = extractvalue { i32, i32, i32, i32 } %366, 3, !dbg !27
+  %371 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %156) #2, !dbg !27
+  %372 = extractvalue { i32, i32, i32, i32 } %371, 0, !dbg !27
+  %373 = extractvalue { i32, i32, i32, i32 } %371, 1, !dbg !27
+  %374 = extractvalue { i32, i32, i32, i32 } %371, 2, !dbg !27
+  %375 = extractvalue { i32, i32, i32, i32 } %371, 3, !dbg !27
+  %376 = tail call { i32, i32, i32, i32 } asm sideeffect "ppu.ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %158) #2, !dbg !27
+  %377 = extractvalue { i32, i32, i32, i32 } %376, 0, !dbg !27
+  %378 = extractvalue { i32, i32, i32, i32 } %376, 1, !dbg !27
+  %379 = extractvalue { i32, i32, i32, i32 } %376, 2, !dbg !27
+  %380 = extractvalue { i32, i32, i32, i32 } %376, 3, !dbg !27
+  %381 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %173, float %174, float %175, float %176, float %177, float %178, float %179, float %180, i32 %302, i32 %303, i32 %304, i32 %305, i32 %342, i32 %343, i32 %344, i32 %345) #2, !dbg !28
+  %382 = extractvalue { float, float, float, float, float, float, float, float } %381, 0, !dbg !28
+  %383 = extractvalue { float, float, float, float, float, float, float, float } %381, 1, !dbg !28
+  %384 = extractvalue { float, float, float, float, float, float, float, float } %381, 2, !dbg !28
+  %385 = extractvalue { float, float, float, float, float, float, float, float } %381, 3, !dbg !28
+  %386 = extractvalue { float, float, float, float, float, float, float, float } %381, 4, !dbg !28
+  %387 = extractvalue { float, float, float, float, float, float, float, float } %381, 5, !dbg !28
+  %388 = extractvalue { float, float, float, float, float, float, float, float } %381, 6, !dbg !28
+  %389 = extractvalue { float, float, float, float, float, float, float, float } %381, 7, !dbg !28
+  %390 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %181, float %182, float %183, float %184, float %185, float %186, float %187, float %188, i32 %302, i32 %303, i32 %304, i32 %305, i32 %362, i32 %363, i32 %364, i32 %365) #2, !dbg !28
+  %391 = extractvalue { float, float, float, float, float, float, float, float } %390, 0, !dbg !28
+  %392 = extractvalue { float, float, float, float, float, float, float, float } %390, 1, !dbg !28
+  %393 = extractvalue { float, float, float, float, float, float, float, float } %390, 2, !dbg !28
+  %394 = extractvalue { float, float, float, float, float, float, float, float } %390, 3, !dbg !28
+  %395 = extractvalue { float, float, float, float, float, float, float, float } %390, 4, !dbg !28
+  %396 = extractvalue { float, float, float, float, float, float, float, float } %390, 5, !dbg !28
+  %397 = extractvalue { float, float, float, float, float, float, float, float } %390, 6, !dbg !28
+  %398 = extractvalue { float, float, float, float, float, float, float, float } %390, 7, !dbg !28
+  %399 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %189, float %190, float %191, float %192, float %193, float %194, float %195, float %196, i32 %322, i32 %323, i32 %324, i32 %325, i32 %342, i32 %343, i32 %344, i32 %345) #2, !dbg !28
+  %400 = extractvalue { float, float, float, float, float, float, float, float } %399, 0, !dbg !28
+  %401 = extractvalue { float, float, float, float, float, float, float, float } %399, 1, !dbg !28
+  %402 = extractvalue { float, float, float, float, float, float, float, float } %399, 2, !dbg !28
+  %403 = extractvalue { float, float, float, float, float, float, float, float } %399, 3, !dbg !28
+  %404 = extractvalue { float, float, float, float, float, float, float, float } %399, 4, !dbg !28
+  %405 = extractvalue { float, float, float, float, float, float, float, float } %399, 5, !dbg !28
+  %406 = extractvalue { float, float, float, float, float, float, float, float } %399, 6, !dbg !28
+  %407 = extractvalue { float, float, float, float, float, float, float, float } %399, 7, !dbg !28
+  %408 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %197, float %198, float %199, float %200, float %201, float %202, float %203, float %204, i32 %322, i32 %323, i32 %324, i32 %325, i32 %362, i32 %363, i32 %364, i32 %365) #2, !dbg !28
+  %409 = extractvalue { float, float, float, float, float, float, float, float } %408, 0, !dbg !28
+  %410 = extractvalue { float, float, float, float, float, float, float, float } %408, 1, !dbg !28
+  %411 = extractvalue { float, float, float, float, float, float, float, float } %408, 2, !dbg !28
+  %412 = extractvalue { float, float, float, float, float, float, float, float } %408, 3, !dbg !28
+  %413 = extractvalue { float, float, float, float, float, float, float, float } %408, 4, !dbg !28
+  %414 = extractvalue { float, float, float, float, float, float, float, float } %408, 5, !dbg !28
+  %415 = extractvalue { float, float, float, float, float, float, float, float } %408, 6, !dbg !28
+  %416 = extractvalue { float, float, float, float, float, float, float, float } %408, 7, !dbg !28
+  %417 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %382, float %383, float %384, float %385, float %386, float %387, float %388, float %389, i32 %307, i32 %308, i32 %309, i32 %310, i32 %347, i32 %348, i32 %349, i32 %350) #2, !dbg !28
+  %418 = extractvalue { float, float, float, float, float, float, float, float } %417, 0, !dbg !28
+  %419 = extractvalue { float, float, float, float, float, float, float, float } %417, 1, !dbg !28
+  %420 = extractvalue { float, float, float, float, float, float, float, float } %417, 2, !dbg !28
+  %421 = extractvalue { float, float, float, float, float, float, float, float } %417, 3, !dbg !28
+  %422 = extractvalue { float, float, float, float, float, float, float, float } %417, 4, !dbg !28
+  %423 = extractvalue { float, float, float, float, float, float, float, float } %417, 5, !dbg !28
+  %424 = extractvalue { float, float, float, float, float, float, float, float } %417, 6, !dbg !28
+  %425 = extractvalue { float, float, float, float, float, float, float, float } %417, 7, !dbg !28
+  %426 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %391, float %392, float %393, float %394, float %395, float %396, float %397, float %398, i32 %307, i32 %308, i32 %309, i32 %310, i32 %367, i32 %368, i32 %369, i32 %370) #2, !dbg !28
+  %427 = extractvalue { float, float, float, float, float, float, float, float } %426, 0, !dbg !28
+  %428 = extractvalue { float, float, float, float, float, float, float, float } %426, 1, !dbg !28
+  %429 = extractvalue { float, float, float, float, float, float, float, float } %426, 2, !dbg !28
+  %430 = extractvalue { float, float, float, float, float, float, float, float } %426, 3, !dbg !28
+  %431 = extractvalue { float, float, float, float, float, float, float, float } %426, 4, !dbg !28
+  %432 = extractvalue { float, float, float, float, float, float, float, float } %426, 5, !dbg !28
+  %433 = extractvalue { float, float, float, float, float, float, float, float } %426, 6, !dbg !28
+  %434 = extractvalue { float, float, float, float, float, float, float, float } %426, 7, !dbg !28
+  %435 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %400, float %401, float %402, float %403, float %404, float %405, float %406, float %407, i32 %327, i32 %328, i32 %329, i32 %330, i32 %347, i32 %348, i32 %349, i32 %350) #2, !dbg !28
+  %436 = extractvalue { float, float, float, float, float, float, float, float } %435, 0, !dbg !28
+  %437 = extractvalue { float, float, float, float, float, float, float, float } %435, 1, !dbg !28
+  %438 = extractvalue { float, float, float, float, float, float, float, float } %435, 2, !dbg !28
+  %439 = extractvalue { float, float, float, float, float, float, float, float } %435, 3, !dbg !28
+  %440 = extractvalue { float, float, float, float, float, float, float, float } %435, 4, !dbg !28
+  %441 = extractvalue { float, float, float, float, float, float, float, float } %435, 5, !dbg !28
+  %442 = extractvalue { float, float, float, float, float, float, float, float } %435, 6, !dbg !28
+  %443 = extractvalue { float, float, float, float, float, float, float, float } %435, 7, !dbg !28
+  %444 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %409, float %410, float %411, float %412, float %413, float %414, float %415, float %416, i32 %327, i32 %328, i32 %329, i32 %330, i32 %367, i32 %368, i32 %369, i32 %370) #2, !dbg !28
+  %445 = extractvalue { float, float, float, float, float, float, float, float } %444, 0, !dbg !28
+  %446 = extractvalue { float, float, float, float, float, float, float, float } %444, 1, !dbg !28
+  %447 = extractvalue { float, float, float, float, float, float, float, float } %444, 2, !dbg !28
+  %448 = extractvalue { float, float, float, float, float, float, float, float } %444, 3, !dbg !28
+  %449 = extractvalue { float, float, float, float, float, float, float, float } %444, 4, !dbg !28
+  %450 = extractvalue { float, float, float, float, float, float, float, float } %444, 5, !dbg !28
+  %451 = extractvalue { float, float, float, float, float, float, float, float } %444, 6, !dbg !28
+  %452 = extractvalue { float, float, float, float, float, float, float, float } %444, 7, !dbg !28
+  %453 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %418, float %419, float %420, float %421, float %422, float %423, float %424, float %425, i32 %312, i32 %313, i32 %314, i32 %315, i32 %352, i32 %353, i32 %354, i32 %355) #2, !dbg !28
+  %454 = extractvalue { float, float, float, float, float, float, float, float } %453, 0, !dbg !28
+  %455 = extractvalue { float, float, float, float, float, float, float, float } %453, 1, !dbg !28
+  %456 = extractvalue { float, float, float, float, float, float, float, float } %453, 2, !dbg !28
+  %457 = extractvalue { float, float, float, float, float, float, float, float } %453, 3, !dbg !28
+  %458 = extractvalue { float, float, float, float, float, float, float, float } %453, 4, !dbg !28
+  %459 = extractvalue { float, float, float, float, float, float, float, float } %453, 5, !dbg !28
+  %460 = extractvalue { float, float, float, float, float, float, float, float } %453, 6, !dbg !28
+  %461 = extractvalue { float, float, float, float, float, float, float, float } %453, 7, !dbg !28
+  %462 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %427, float %428, float %429, float %430, float %431, float %432, float %433, float %434, i32 %312, i32 %313, i32 %314, i32 %315, i32 %372, i32 %373, i32 %374, i32 %375) #2, !dbg !28
+  %463 = extractvalue { float, float, float, float, float, float, float, float } %462, 0, !dbg !28
+  %464 = extractvalue { float, float, float, float, float, float, float, float } %462, 1, !dbg !28
+  %465 = extractvalue { float, float, float, float, float, float, float, float } %462, 2, !dbg !28
+  %466 = extractvalue { float, float, float, float, float, float, float, float } %462, 3, !dbg !28
+  %467 = extractvalue { float, float, float, float, float, float, float, float } %462, 4, !dbg !28
+  %468 = extractvalue { float, float, float, float, float, float, float, float } %462, 5, !dbg !28
+  %469 = extractvalue { float, float, float, float, float, float, float, float } %462, 6, !dbg !28
+  %470 = extractvalue { float, float, float, float, float, float, float, float } %462, 7, !dbg !28
+  %471 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %436, float %437, float %438, float %439, float %440, float %441, float %442, float %443, i32 %332, i32 %333, i32 %334, i32 %335, i32 %352, i32 %353, i32 %354, i32 %355) #2, !dbg !28
+  %472 = extractvalue { float, float, float, float, float, float, float, float } %471, 0, !dbg !28
+  %473 = extractvalue { float, float, float, float, float, float, float, float } %471, 1, !dbg !28
+  %474 = extractvalue { float, float, float, float, float, float, float, float } %471, 2, !dbg !28
+  %475 = extractvalue { float, float, float, float, float, float, float, float } %471, 3, !dbg !28
+  %476 = extractvalue { float, float, float, float, float, float, float, float } %471, 4, !dbg !28
+  %477 = extractvalue { float, float, float, float, float, float, float, float } %471, 5, !dbg !28
+  %478 = extractvalue { float, float, float, float, float, float, float, float } %471, 6, !dbg !28
+  %479 = extractvalue { float, float, float, float, float, float, float, float } %471, 7, !dbg !28
+  %480 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %445, float %446, float %447, float %448, float %449, float %450, float %451, float %452, i32 %332, i32 %333, i32 %334, i32 %335, i32 %372, i32 %373, i32 %374, i32 %375) #2, !dbg !28
+  %481 = extractvalue { float, float, float, float, float, float, float, float } %480, 0, !dbg !28
+  %482 = extractvalue { float, float, float, float, float, float, float, float } %480, 1, !dbg !28
+  %483 = extractvalue { float, float, float, float, float, float, float, float } %480, 2, !dbg !28
+  %484 = extractvalue { float, float, float, float, float, float, float, float } %480, 3, !dbg !28
+  %485 = extractvalue { float, float, float, float, float, float, float, float } %480, 4, !dbg !28
+  %486 = extractvalue { float, float, float, float, float, float, float, float } %480, 5, !dbg !28
+  %487 = extractvalue { float, float, float, float, float, float, float, float } %480, 6, !dbg !28
+  %488 = extractvalue { float, float, float, float, float, float, float, float } %480, 7, !dbg !28
+  %489 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %454, float %455, float %456, float %457, float %458, float %459, float %460, float %461, i32 %317, i32 %318, i32 %319, i32 %320, i32 %357, i32 %358, i32 %359, i32 %360) #2, !dbg !28
+  %490 = extractvalue { float, float, float, float, float, float, float, float } %489, 0, !dbg !28
+  %491 = extractvalue { float, float, float, float, float, float, float, float } %489, 1, !dbg !28
+  %492 = extractvalue { float, float, float, float, float, float, float, float } %489, 2, !dbg !28
+  %493 = extractvalue { float, float, float, float, float, float, float, float } %489, 3, !dbg !28
+  %494 = extractvalue { float, float, float, float, float, float, float, float } %489, 4, !dbg !28
+  %495 = extractvalue { float, float, float, float, float, float, float, float } %489, 5, !dbg !28
+  %496 = extractvalue { float, float, float, float, float, float, float, float } %489, 6, !dbg !28
+  %497 = extractvalue { float, float, float, float, float, float, float, float } %489, 7, !dbg !28
+  %498 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %463, float %464, float %465, float %466, float %467, float %468, float %469, float %470, i32 %317, i32 %318, i32 %319, i32 %320, i32 %377, i32 %378, i32 %379, i32 %380) #2, !dbg !28
+  %499 = extractvalue { float, float, float, float, float, float, float, float } %498, 0, !dbg !28
+  %500 = extractvalue { float, float, float, float, float, float, float, float } %498, 1, !dbg !28
+  %501 = extractvalue { float, float, float, float, float, float, float, float } %498, 2, !dbg !28
+  %502 = extractvalue { float, float, float, float, float, float, float, float } %498, 3, !dbg !28
+  %503 = extractvalue { float, float, float, float, float, float, float, float } %498, 4, !dbg !28
+  %504 = extractvalue { float, float, float, float, float, float, float, float } %498, 5, !dbg !28
+  %505 = extractvalue { float, float, float, float, float, float, float, float } %498, 6, !dbg !28
+  %506 = extractvalue { float, float, float, float, float, float, float, float } %498, 7, !dbg !28
+  %507 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %472, float %473, float %474, float %475, float %476, float %477, float %478, float %479, i32 %337, i32 %338, i32 %339, i32 %340, i32 %357, i32 %358, i32 %359, i32 %360) #2, !dbg !28
+  %508 = extractvalue { float, float, float, float, float, float, float, float } %507, 0, !dbg !28
+  %509 = extractvalue { float, float, float, float, float, float, float, float } %507, 1, !dbg !28
+  %510 = extractvalue { float, float, float, float, float, float, float, float } %507, 2, !dbg !28
+  %511 = extractvalue { float, float, float, float, float, float, float, float } %507, 3, !dbg !28
+  %512 = extractvalue { float, float, float, float, float, float, float, float } %507, 4, !dbg !28
+  %513 = extractvalue { float, float, float, float, float, float, float, float } %507, 5, !dbg !28
+  %514 = extractvalue { float, float, float, float, float, float, float, float } %507, 6, !dbg !28
+  %515 = extractvalue { float, float, float, float, float, float, float, float } %507, 7, !dbg !28
+  %516 = tail call { float, float, float, float, float, float, float, float } asm sideeffect "ppu.mma.sync.aligned.m16n16k16.row.col.f32.bf16.bf16.f32 { $0, $1, $2, $3, $4, $5, $6, $7 }, { $16, $17, $18, $19 }, { $20, $21, $22, $23 }, { $8, $9, $10, $11, $12, $13, $14, $15 };", "=f,=f,=f,=f,=f,=f,=f,=f,0,1,2,3,4,5,6,7,r,r,r,r,r,r,r,r"(float %481, float %482, float %483, float %484, float %485, float %486, float %487, float %488, i32 %337, i32 %338, i32 %339, i32 %340, i32 %377, i32 %378, i32 %379, i32 %380) #2, !dbg !28
+  %517 = extractvalue { float, float, float, float, float, float, float, float } %516, 0, !dbg !28
+  %518 = extractvalue { float, float, float, float, float, float, float, float } %516, 1, !dbg !28
+  %519 = extractvalue { float, float, float, float, float, float, float, float } %516, 2, !dbg !28
+  %520 = extractvalue { float, float, float, float, float, float, float, float } %516, 3, !dbg !28
+  %521 = extractvalue { float, float, float, float, float, float, float, float } %516, 4, !dbg !28
+  %522 = extractvalue { float, float, float, float, float, float, float, float } %516, 5, !dbg !28
+  %523 = extractvalue { float, float, float, float, float, float, float, float } %516, 6, !dbg !28
+  %524 = extractvalue { float, float, float, float, float, float, float, float } %516, 7, !dbg !28
+  %525 = or disjoint i64 %indvars.iv, %32, !dbg !23
+  %526 = getelementptr bfloat, ptr addrspace(1) %58, i64 %525, !dbg !23
+  %527 = getelementptr bfloat, ptr addrspace(1) %60, i64 %525, !dbg !23
+  %528 = getelementptr bfloat, ptr addrspace(1) %62, i64 %525, !dbg !23
+  %529 = getelementptr bfloat, ptr addrspace(1) %64, i64 %525, !dbg !23
+  %530 = and i1 %46, %172, !dbg !23
+  %531 = and i1 %47, %172, !dbg !23
+  %532 = and i1 %48, %172, !dbg !23
+  %533 = and i1 %49, %172, !dbg !23
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !23
+  %534 = select i1 %530, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) %71, ptr addrspace(1) %526, i32 %534) #2, !dbg !23
+  %535 = select i1 %531, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) nonnull %74, ptr addrspace(1) %527, i32 %535) #2, !dbg !23
+  %536 = select i1 %532, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) nonnull %77, ptr addrspace(1) %528, i32 %536) #2, !dbg !23
+  %537 = select i1 %533, i32 16, i32 0, !dbg !23
+  tail call void asm sideeffect "cp.async.cg.shared.global [ $0 + 0 ], [ $1 + 0 ], 0x10, $2;", "r,l,r"(ptr addrspace(3) nonnull %80, ptr addrspace(1) %529, i32 %537) #2, !dbg !23
+  tail call void @llvm.nvvm.cp.async.commit.group(), !dbg !23
+  br i1 %172, label %171, label %538, !dbg !25
+
+538:                                              ; preds = %171
+  %539 = and i32 %13, 32, !dbg !14
+  %540 = lshr exact i32 %539, 1, !dbg !14
+  %541 = and i32 %13, 3, !dbg !14
+  %542 = lshr i32 %13, 2, !dbg !14
+  %543 = lshr i32 %13, 4, !dbg !14
+  %544 = shl nuw nsw i32 %13, 2, !dbg !14
+  %545 = and i32 %544, 60, !dbg !14
+  %546 = zext nneg i32 %545 to i64, !dbg !19
+  tail call void @llvm.nvvm.cp.async.wait.group(i32 0), !dbg !25
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !25
+  %547 = getelementptr float, ptr addrspace(1) %2, i64 %22, !dbg !29
+  %548 = getelementptr float, ptr addrspace(1) %547, i64 %24, !dbg !30
+  %549 = shl i32 %54, 6, !dbg !31
+  %550 = sext i32 %549 to i64, !dbg !32
+  %551 = getelementptr float, ptr addrspace(1) %3, i64 %550, !dbg !32
+  %552 = shl nuw nsw i32 %541, 10, !dbg !33
+  %553 = shl nuw nsw i32 %541, 5, !dbg !33
+  %554 = and i32 %13, 24, !dbg !33
+  %555 = shl nuw nsw i32 %554, 4, !dbg !33
+  %556 = and i32 %544, 16, !dbg !33
+  %557 = shl nuw nsw i32 %13, 3, !dbg !33
+  %558 = and i32 %557, 512, !dbg !33
+  %559 = or disjoint i32 %552, %556, !dbg !33
+  %560 = or disjoint i32 %559, %558, !dbg !33
+  %561 = or disjoint i32 %553, %555, !dbg !33
+  %562 = xor i32 %561, %539, !dbg !33
+  %563 = or disjoint i32 %560, %562, !dbg !33
+  %564 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %563, !dbg !33
+  %565 = insertelement <4 x i32> poison, i32 %12, i64 0, !dbg !34
+  %566 = shufflevector <4 x i32> %565, <4 x i32> poison, <4 x i32> zeroinitializer, !dbg !34
+  %567 = insertelement <4 x i32> poison, i32 %4, i64 0, !dbg !35
+  %568 = shufflevector <4 x i32> %567, <4 x i32> poison, <4 x i32> zeroinitializer, !dbg !35
+  %569 = insertelement <4 x float> poison, float %490, i64 0, !dbg !36
+  %570 = insertelement <4 x float> %569, float %491, i64 1, !dbg !36
+  %571 = insertelement <4 x float> %570, float %492, i64 2, !dbg !36
+  %572 = insertelement <4 x float> %571, float %493, i64 3, !dbg !36
+  %573 = xor i32 %563, 64, !dbg !33
+  %574 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %573, !dbg !33
+  %575 = shl nuw nsw i32 %554, 7, !dbg !33
+  %576 = and i32 %544, 496, !dbg !33
+  %577 = or disjoint i32 %575, %553, !dbg !33
+  %578 = xor i32 %577, %576, !dbg !33
+  %579 = getelementptr inbounds nuw i8, ptr addrspace(3) @global_smem, i32 %578, !dbg !33
+  %580 = ptrtoint ptr addrspace(3) %579 to i32, !dbg !33
+  %581 = getelementptr inbounds nuw i8, ptr addrspace(3) %579, i32 512, !dbg !33
+  %582 = ptrtoint ptr addrspace(3) %581 to i32, !dbg !33
+  %583 = insertelement <4 x float> poison, float %494, i64 0, !dbg !36
+  %584 = insertelement <4 x float> %583, float %495, i64 1, !dbg !36
+  %585 = insertelement <4 x float> %584, float %496, i64 2, !dbg !36
+  %586 = insertelement <4 x float> %585, float %497, i64 3, !dbg !36
+  %587 = insertelement <4 x float> poison, float %508, i64 0, !dbg !36
+  %588 = insertelement <4 x float> %587, float %509, i64 1, !dbg !36
+  %589 = insertelement <4 x float> %588, float %510, i64 2, !dbg !36
+  %590 = insertelement <4 x float> %589, float %511, i64 3, !dbg !36
+  %591 = insertelement <4 x float> poison, float %517, i64 0, !dbg !36
+  %592 = insertelement <4 x float> %591, float %518, i64 1, !dbg !36
+  %593 = insertelement <4 x float> %592, float %519, i64 2, !dbg !36
+  %594 = insertelement <4 x float> %593, float %520, i64 3, !dbg !36
+  %595 = insertelement <4 x float> poison, float %512, i64 0, !dbg !36
+  %596 = insertelement <4 x float> %595, float %513, i64 1, !dbg !36
+  %597 = insertelement <4 x float> %596, float %514, i64 2, !dbg !36
+  %598 = insertelement <4 x float> %597, float %515, i64 3, !dbg !36
+  %599 = and i32 %543, 7, !dbg !14
+  %600 = insertelement <4 x i32> poison, i32 %543, i64 0, !dbg !14
+  %601 = insertelement <4 x i32> %600, i32 %599, i64 1, !dbg !14
+  %602 = insertelement <2 x i32> poison, i32 %599, i64 0, !dbg !14
+  %603 = or disjoint i32 %599, 8, !dbg !14
+  %604 = or disjoint i32 %540, %541, !dbg !14
+  %605 = insertelement <2 x i32> poison, i32 %604, i64 0, !dbg !14
+  %606 = shufflevector <2 x i32> %605, <2 x i32> poison, <2 x i32> zeroinitializer, !dbg !14
+  %607 = or disjoint <2 x i32> %606, <i32 8, i32 12>, !dbg !14
+  %608 = or disjoint i32 %604, 4, !dbg !14
+  %609 = and i32 %542, 23, !dbg !14
+  %610 = or disjoint i32 %609, 40, !dbg !14
+  %611 = or disjoint i32 %609, 32, !dbg !14
+  %612 = or disjoint i32 %609, 8, !dbg !14
+  %613 = insertelement <16 x i32> poison, i32 %603, i64 6, !dbg !19
+  %614 = insertelement <16 x i32> %613, i32 %599, i64 7, !dbg !19
+  %615 = insertelement <16 x i32> %614, i32 %609, i64 8, !dbg !19
+  %616 = insertelement <16 x i32> %615, i32 %612, i64 9, !dbg !19
+  %617 = insertelement <16 x i32> %616, i32 %611, i64 10, !dbg !19
+  %618 = insertelement <16 x i32> %617, i32 %610, i64 11, !dbg !19
+  %619 = insertelement <16 x i32> %618, i32 %604, i64 12, !dbg !19
+  %620 = insertelement <16 x i32> %619, i32 %608, i64 13, !dbg !19
+  %621 = shufflevector <4 x i32> %601, <4 x i32> poison, <16 x i32> <i32 0, i32 1, i32 1, i32 1, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>, !dbg !19
+  %622 = or <16 x i32> %621, <i32 56, i32 48, i32 40, i32 32, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>, !dbg !19
+  %623 = shufflevector <16 x i32> %622, <16 x i32> %620, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 poison, i32 poison, i32 22, i32 23, i32 24, i32 25, i32 26, i32 27, i32 28, i32 29, i32 poison, i32 poison>, !dbg !19
+  %624 = shufflevector <2 x i32> %602, <2 x i32> poison, <16 x i32> <i32 0, i32 0, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>, !dbg !19
+  %625 = or disjoint <16 x i32> %624, <i32 24, i32 16, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>, !dbg !19
+  %626 = shufflevector <16 x i32> %623, <16 x i32> %625, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 16, i32 17, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 poison, i32 poison>, !dbg !19
+  %627 = shufflevector <2 x i32> %607, <2 x i32> poison, <16 x i32> <i32 0, i32 1, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>, !dbg !19
+  %628 = shufflevector <16 x i32> %626, <16 x i32> %627, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 16, i32 17>, !dbg !19
+  %629 = insertelement <16 x i32> poison, i32 %12, i64 0, !dbg !19
+  %630 = shufflevector <16 x i32> %629, <16 x i32> poison, <16 x i32> zeroinitializer, !dbg !19
+  %631 = or disjoint <16 x i32> %628, %630, !dbg !19
+  %632 = extractelement <16 x i32> %631, i64 7, !dbg !33
+  %633 = sext i32 %632 to i64, !dbg !33
+  %.idx16 = shl nsw i64 %633, 12, !dbg !33
+  %634 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx16, !dbg !33
+  %635 = getelementptr float, ptr addrspace(1) %634, i64 %546, !dbg !33
+  %636 = extractelement <16 x i32> %631, i64 6, !dbg !33
+  %637 = sext i32 %636 to i64, !dbg !33
+  %.idx17 = shl nsw i64 %637, 12, !dbg !33
+  %638 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx17, !dbg !33
+  %639 = getelementptr float, ptr addrspace(1) %638, i64 %546, !dbg !33
+  %640 = extractelement <16 x i32> %631, i64 5, !dbg !33
+  %641 = sext i32 %640 to i64, !dbg !33
+  %.idx18 = shl nsw i64 %641, 12, !dbg !33
+  %642 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx18, !dbg !33
+  %643 = getelementptr float, ptr addrspace(1) %642, i64 %546, !dbg !33
+  %644 = extractelement <16 x i32> %631, i64 4, !dbg !33
+  %645 = sext i32 %644 to i64, !dbg !33
+  %.idx19 = shl nsw i64 %645, 12, !dbg !33
+  %646 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx19, !dbg !33
+  %647 = getelementptr float, ptr addrspace(1) %646, i64 %546, !dbg !33
+  %648 = extractelement <16 x i32> %631, i64 3, !dbg !33
+  %649 = sext i32 %648 to i64, !dbg !33
+  %.idx20 = shl nsw i64 %649, 12, !dbg !33
+  %650 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx20, !dbg !33
+  %651 = getelementptr float, ptr addrspace(1) %650, i64 %546, !dbg !33
+  %652 = extractelement <16 x i32> %631, i64 2, !dbg !33
+  %653 = sext i32 %652 to i64, !dbg !33
+  %.idx21 = shl nsw i64 %653, 12, !dbg !33
+  %654 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx21, !dbg !33
+  %655 = getelementptr float, ptr addrspace(1) %654, i64 %546, !dbg !33
+  %656 = extractelement <16 x i32> %631, i64 1, !dbg !33
+  %657 = sext i32 %656 to i64, !dbg !33
+  %.idx22 = shl nsw i64 %657, 12, !dbg !33
+  %658 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx22, !dbg !33
+  %659 = getelementptr float, ptr addrspace(1) %658, i64 %546, !dbg !33
+  %660 = extractelement <16 x i32> %631, i64 0, !dbg !33
+  %661 = sext i32 %660 to i64, !dbg !33
+  %.idx23 = shl nsw i64 %661, 12, !dbg !33
+  %662 = getelementptr i8, ptr addrspace(1) %551, i64 %.idx23, !dbg !33
+  %663 = getelementptr float, ptr addrspace(1) %662, i64 %546, !dbg !33
+  %664 = insertelement <16 x i32> poison, i32 %4, i64 0, !dbg !33
+  %665 = shufflevector <16 x i32> %664, <16 x i32> poison, <16 x i32> zeroinitializer, !dbg !33
+  %666 = icmp slt <16 x i32> %631, %665, !dbg !33
+  %667 = extractelement <16 x i1> %666, i64 7, !dbg !33
+  %668 = and i1 %41, %667, !dbg !33
+  %669 = extractelement <16 x i1> %666, i64 6, !dbg !33
+  %670 = and i1 %41, %669, !dbg !33
+  %671 = extractelement <16 x i1> %666, i64 5, !dbg !33
+  %672 = and i1 %41, %671, !dbg !33
+  %673 = extractelement <16 x i1> %666, i64 4, !dbg !33
+  %674 = and i1 %41, %673, !dbg !33
+  %675 = extractelement <16 x i1> %666, i64 3, !dbg !33
+  %676 = and i1 %41, %675, !dbg !33
+  %677 = extractelement <16 x i1> %666, i64 2, !dbg !33
+  %678 = and i1 %41, %677, !dbg !33
+  %679 = extractelement <16 x i1> %666, i64 1, !dbg !33
+  %680 = and i1 %41, %679, !dbg !33
+  %681 = extractelement <16 x i1> %666, i64 0, !dbg !33
+  %682 = and i1 %41, %681, !dbg !33
+  %683 = insertelement <4 x i32> poison, i32 %604, i64 0, !dbg !14
+  %684 = shufflevector <4 x i32> %683, <4 x i32> poison, <4 x i32> zeroinitializer, !dbg !14
+  %685 = or disjoint <4 x i32> %684, <i32 32, i32 36, i32 40, i32 44>, !dbg !14
+  %686 = extractelement <4 x i32> %685, i64 3, !dbg !37
+  %687 = zext nneg i32 %686 to i64, !dbg !19
+  %688 = or disjoint i64 %687, %27, !dbg !19
+  %689 = icmp slt i64 %688, %26, !dbg !19
+  %690 = and i1 %41, %689, !dbg !19
+  %691 = extractelement <4 x i32> %685, i64 2, !dbg !19
+  %692 = zext nneg i32 %691 to i64, !dbg !19
+  %693 = or disjoint i64 %692, %27, !dbg !19
+  %694 = icmp slt i64 %693, %26, !dbg !19
+  %695 = and i1 %41, %694, !dbg !19
+  %696 = extractelement <4 x i32> %685, i64 1, !dbg !37
+  %697 = zext nneg i32 %696 to i64, !dbg !19
+  %698 = or disjoint i64 %697, %27, !dbg !19
+  %699 = icmp slt i64 %698, %26, !dbg !19
+  %700 = and i1 %41, %699, !dbg !19
+  %701 = extractelement <4 x i32> %685, i64 0, !dbg !37
+  %702 = zext nneg i32 %701 to i64, !dbg !19
+  %703 = or disjoint i64 %702, %27, !dbg !19
+  %704 = icmp slt i64 %703, %26, !dbg !19
+  %705 = and i1 %41, %704, !dbg !19
+  %706 = extractelement <16 x i1> %666, i64 15, !dbg !19
+  %707 = and i1 %41, %706, !dbg !19
+  %708 = extractelement <16 x i1> %666, i64 14, !dbg !19
+  %709 = and i1 %41, %708, !dbg !19
+  %710 = extractelement <16 x i1> %666, i64 13, !dbg !19
+  %711 = and i1 %41, %710, !dbg !19
+  %712 = extractelement <16 x i1> %666, i64 12, !dbg !19
+  %713 = and i1 %41, %712, !dbg !19
+  %714 = or disjoint <4 x i32> %685, %566, !dbg !34
+  %715 = icmp slt <4 x i32> %714, %568, !dbg !35
+  %716 = insertelement <4 x i32> %683, i32 %608, i64 1, !dbg !34
+  %717 = shufflevector <2 x i32> %607, <2 x i32> poison, <4 x i32> <i32 0, i32 1, i32 poison, i32 poison>, !dbg !34
+  %718 = shufflevector <4 x i32> %716, <4 x i32> %717, <4 x i32> <i32 0, i32 1, i32 4, i32 5>, !dbg !34
+  %719 = or disjoint <4 x i32> %718, %566, !dbg !34
+  %720 = icmp slt <4 x i32> %719, %568, !dbg !35
+  %721 = extractelement <16 x i32> %631, i64 12, !dbg !38
+  %722 = sext i32 %721 to i64, !dbg !38
+  %.idx8 = shl nsw i64 %722, 6, !dbg !38
+  %723 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx8, !dbg !38
+  %724 = extractelement <16 x i32> %631, i64 13, !dbg !38
+  %725 = sext i32 %724 to i64, !dbg !38
+  %.idx9 = shl nsw i64 %725, 6, !dbg !38
+  %726 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx9, !dbg !38
+  %727 = extractelement <16 x i32> %631, i64 14, !dbg !38
+  %728 = sext i32 %727 to i64, !dbg !38
+  %.idx10 = shl nsw i64 %728, 6, !dbg !38
+  %729 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx10, !dbg !38
+  %730 = extractelement <16 x i32> %631, i64 15, !dbg !38
+  %731 = sext i32 %730 to i64, !dbg !38
+  %.idx11 = shl nsw i64 %731, 6, !dbg !38
+  %732 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx11, !dbg !38
+  %.idx12 = shl nsw i64 %703, 6, !dbg !38
+  %733 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx12, !dbg !38
+  %.idx13 = shl nsw i64 %698, 6, !dbg !38
+  %734 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx13, !dbg !38
+  %.idx14 = shl nsw i64 %693, 6, !dbg !38
+  %735 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx14, !dbg !38
+  %.idx15 = shl nsw i64 %688, 6, !dbg !38
+  %736 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx15, !dbg !38
+  %737 = shufflevector <4 x i32> %716, <4 x i32> %717, <4 x i32> <i32 0, i32 1, i32 0, i32 5>, !dbg !37
+  %738 = insertelement <4 x i32> %685, i32 %604, i64 0, !dbg !37
+  %739 = extractelement <16 x i1> %666, i64 11, !dbg !19
+  %740 = and i1 %41, %739, !dbg !19
+  %741 = extractelement <16 x i1> %666, i64 10, !dbg !19
+  %742 = and i1 %41, %741, !dbg !19
+  %743 = extractelement <16 x i1> %666, i64 9, !dbg !19
+  %744 = and i1 %41, %743, !dbg !19
+  %745 = extractelement <16 x i1> %666, i64 8, !dbg !19
+  %746 = and i1 %41, %745, !dbg !19
+  %747 = or disjoint i32 %610, %12, !dbg !34
+  %748 = icmp slt i32 %747, %4, !dbg !35
+  %749 = or disjoint i32 %611, %12, !dbg !34
+  %750 = icmp slt i32 %749, %4, !dbg !35
+  %751 = or disjoint i32 %612, %12, !dbg !34
+  %752 = icmp slt i32 %751, %4, !dbg !35
+  %753 = or disjoint i32 %609, %12, !dbg !34
+  %754 = icmp slt i32 %753, %4, !dbg !35
+  %755 = extractelement <16 x i32> %631, i64 8, !dbg !38
+  %756 = sext i32 %755 to i64, !dbg !38
+  %.idx4 = shl nsw i64 %756, 6, !dbg !38
+  %757 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx4, !dbg !38
+  %758 = extractelement <16 x i32> %631, i64 9, !dbg !38
+  %759 = sext i32 %758 to i64, !dbg !38
+  %.idx5 = shl nsw i64 %759, 6, !dbg !38
+  %760 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx5, !dbg !38
+  %761 = extractelement <16 x i32> %631, i64 10, !dbg !38
+  %762 = sext i32 %761 to i64, !dbg !38
+  %.idx6 = shl nsw i64 %762, 6, !dbg !38
+  %763 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx6, !dbg !38
+  %764 = extractelement <16 x i32> %631, i64 11, !dbg !38
+  %765 = sext i32 %764 to i64, !dbg !38
+  %.idx7 = shl nsw i64 %765, 6, !dbg !38
+  %766 = getelementptr i8, ptr addrspace(1) %548, i64 %.idx7, !dbg !38
+  %767 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %757, i1 %746) #2, !dbg !38
+  %768 = bitcast i32 %767 to float, !dbg !38
+  %769 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %760, i1 %744) #2, !dbg !38
+  %770 = bitcast i32 %769 to float, !dbg !38
+  %771 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %763, i1 %742) #2, !dbg !38
+  %772 = bitcast i32 %771 to float, !dbg !38
+  %773 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %766, i1 %740) #2, !dbg !38
+  %774 = bitcast i32 %773 to float, !dbg !38
+  %775 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %723, i1 %713) #2, !dbg !38
+  %776 = bitcast i32 %775 to float, !dbg !38
+  %777 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %726, i1 %711) #2, !dbg !38
+  %778 = bitcast i32 %777 to float, !dbg !38
+  %779 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %729, i1 %709) #2, !dbg !38
+  %780 = bitcast i32 %779 to float, !dbg !38
+  %781 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %732, i1 %707) #2, !dbg !38
+  %782 = bitcast i32 %781 to float, !dbg !38
+  %783 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %733, i1 %705) #2, !dbg !38
+  %784 = bitcast i32 %783 to float, !dbg !38
+  %785 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %734, i1 %700) #2, !dbg !38
+  %786 = bitcast i32 %785 to float, !dbg !38
+  %787 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %735, i1 %695) #2, !dbg !38
+  %788 = bitcast i32 %787 to float, !dbg !38
+  %789 = tail call i32 asm sideeffect "mov.u32 $0, 0x0;\0A\09@$2 ld.global.b32 { $0 }, [ $1 + 0 ];", "=r,l,b"(ptr addrspace(1) %736, i1 %690) #2, !dbg !38
+  %790 = bitcast i32 %789 to float, !dbg !38
+  %791 = fsub float %768, %776, !dbg !39
+  %792 = fsub float %768, %778, !dbg !39
+  %793 = fsub float %768, %780, !dbg !39
+  %794 = fsub float %768, %782, !dbg !39
+  %795 = fsub float %770, %776, !dbg !39
+  %796 = fsub float %770, %778, !dbg !39
+  %797 = fsub float %770, %780, !dbg !39
+  %798 = fsub float %770, %782, !dbg !39
+  %799 = fsub float %772, %776, !dbg !39
+  %800 = fsub float %772, %778, !dbg !39
+  %801 = fsub float %772, %780, !dbg !39
+  %802 = fsub float %772, %782, !dbg !39
+  %803 = fsub float %774, %776, !dbg !39
+  %804 = fsub float %774, %778, !dbg !39
+  %805 = fsub float %774, %780, !dbg !39
+  %806 = fsub float %774, %782, !dbg !39
+  %807 = fsub float %772, %784, !dbg !39
+  %808 = fsub float %772, %786, !dbg !39
+  %809 = fsub float %772, %788, !dbg !39
+  %810 = fsub float %772, %790, !dbg !39
+  %811 = fsub float %774, %784, !dbg !39
+  %812 = fsub float %774, %786, !dbg !39
+  %813 = fsub float %774, %788, !dbg !39
+  %814 = fsub float %774, %790, !dbg !39
+  %815 = fmul float %791, 0x3FF7154760000000, !dbg !40
+  %816 = tail call float @llvm.nvvm.ex2.approx.f(float %815), !dbg !40
+  %817 = fmul float %792, 0x3FF7154760000000, !dbg !40
+  %818 = tail call float @llvm.nvvm.ex2.approx.f(float %817), !dbg !40
+  %819 = fmul float %793, 0x3FF7154760000000, !dbg !40
+  %820 = tail call float @llvm.nvvm.ex2.approx.f(float %819), !dbg !40
+  %821 = fmul float %794, 0x3FF7154760000000, !dbg !40
+  %822 = tail call float @llvm.nvvm.ex2.approx.f(float %821), !dbg !40
+  %823 = fmul float %795, 0x3FF7154760000000, !dbg !40
+  %824 = tail call float @llvm.nvvm.ex2.approx.f(float %823), !dbg !40
+  %825 = fmul float %796, 0x3FF7154760000000, !dbg !40
+  %826 = tail call float @llvm.nvvm.ex2.approx.f(float %825), !dbg !40
+  %827 = fmul float %797, 0x3FF7154760000000, !dbg !40
+  %828 = tail call float @llvm.nvvm.ex2.approx.f(float %827), !dbg !40
+  %829 = fmul float %798, 0x3FF7154760000000, !dbg !40
+  %830 = tail call float @llvm.nvvm.ex2.approx.f(float %829), !dbg !40
+  %831 = fmul float %799, 0x3FF7154760000000, !dbg !40
+  %832 = tail call float @llvm.nvvm.ex2.approx.f(float %831), !dbg !40
+  %833 = fmul float %800, 0x3FF7154760000000, !dbg !40
+  %834 = tail call float @llvm.nvvm.ex2.approx.f(float %833), !dbg !40
+  %835 = fmul float %801, 0x3FF7154760000000, !dbg !40
+  %836 = tail call float @llvm.nvvm.ex2.approx.f(float %835), !dbg !40
+  %837 = fmul float %802, 0x3FF7154760000000, !dbg !40
+  %838 = tail call float @llvm.nvvm.ex2.approx.f(float %837), !dbg !40
+  %839 = fmul float %803, 0x3FF7154760000000, !dbg !40
+  %840 = tail call float @llvm.nvvm.ex2.approx.f(float %839), !dbg !40
+  %841 = fmul float %804, 0x3FF7154760000000, !dbg !40
+  %842 = tail call float @llvm.nvvm.ex2.approx.f(float %841), !dbg !40
+  %843 = fmul float %805, 0x3FF7154760000000, !dbg !40
+  %844 = tail call float @llvm.nvvm.ex2.approx.f(float %843), !dbg !40
+  %845 = fmul float %806, 0x3FF7154760000000, !dbg !40
+  %846 = tail call float @llvm.nvvm.ex2.approx.f(float %845), !dbg !40
+  %847 = fmul float %807, 0x3FF7154760000000, !dbg !40
+  %848 = tail call float @llvm.nvvm.ex2.approx.f(float %847), !dbg !40
+  %849 = fmul float %808, 0x3FF7154760000000, !dbg !40
+  %850 = tail call float @llvm.nvvm.ex2.approx.f(float %849), !dbg !40
+  %851 = fmul float %809, 0x3FF7154760000000, !dbg !40
+  %852 = tail call float @llvm.nvvm.ex2.approx.f(float %851), !dbg !40
+  %853 = fmul float %810, 0x3FF7154760000000, !dbg !40
+  %854 = tail call float @llvm.nvvm.ex2.approx.f(float %853), !dbg !40
+  %855 = fmul float %811, 0x3FF7154760000000, !dbg !40
+  %856 = tail call float @llvm.nvvm.ex2.approx.f(float %855), !dbg !40
+  %857 = fmul float %812, 0x3FF7154760000000, !dbg !40
+  %858 = tail call float @llvm.nvvm.ex2.approx.f(float %857), !dbg !40
+  %859 = fmul float %813, 0x3FF7154760000000, !dbg !40
+  %860 = tail call float @llvm.nvvm.ex2.approx.f(float %859), !dbg !40
+  %861 = fmul float %814, 0x3FF7154760000000, !dbg !40
+  %862 = tail call float @llvm.nvvm.ex2.approx.f(float %861), !dbg !40
+  %863 = insertelement <4 x float> poison, float %816, i64 0, !dbg !36
+  %864 = insertelement <4 x float> %863, float %818, i64 1, !dbg !36
+  %865 = insertelement <4 x float> %864, float %820, i64 2, !dbg !36
+  %866 = insertelement <4 x float> %865, float %822, i64 3, !dbg !36
+  %867 = fmul <4 x float> %572, %866, !dbg !36
+  %868 = insertelement <4 x float> poison, float %824, i64 0, !dbg !36
+  %869 = insertelement <4 x float> %868, float %826, i64 1, !dbg !36
+  %870 = insertelement <4 x float> %869, float %828, i64 2, !dbg !36
+  %871 = insertelement <4 x float> %870, float %830, i64 3, !dbg !36
+  %872 = fmul <4 x float> %586, %871, !dbg !36
+  %873 = insertelement <4 x float> poison, float %848, i64 0, !dbg !36
+  %874 = insertelement <4 x float> %873, float %850, i64 1, !dbg !36
+  %875 = insertelement <4 x float> %874, float %852, i64 2, !dbg !36
+  %876 = insertelement <4 x float> %875, float %854, i64 3, !dbg !36
+  %877 = fmul <4 x float> %594, %876, !dbg !36
+  %878 = insertelement <4 x float> poison, float %521, i64 0, !dbg !36
+  %879 = insertelement <4 x float> %878, float %522, i64 1, !dbg !36
+  %880 = insertelement <4 x float> %879, float %523, i64 2, !dbg !36
+  %881 = insertelement <4 x float> %880, float %524, i64 3, !dbg !36
+  %882 = insertelement <4 x float> poison, float %856, i64 0, !dbg !36
+  %883 = insertelement <4 x float> %882, float %858, i64 1, !dbg !36
+  %884 = insertelement <4 x float> %883, float %860, i64 2, !dbg !36
+  %885 = insertelement <4 x float> %884, float %862, i64 3, !dbg !36
+  %886 = fmul <4 x float> %881, %885, !dbg !36
+  %887 = insertelement <4 x i32> poison, i32 %609, i64 0, !dbg !37
+  %888 = shufflevector <4 x i32> %887, <4 x i32> poison, <4 x i32> zeroinitializer, !dbg !37
+  %889 = icmp ugt <4 x i32> %888, %718, !dbg !37
+  %890 = insertelement <4 x i32> poison, i32 %612, i64 0, !dbg !37
+  %891 = insertelement <4 x i32> %890, i32 %609, i64 1, !dbg !37
+  %892 = shufflevector <4 x i32> %891, <4 x i32> poison, <4 x i32> <i32 0, i32 0, i32 1, i32 0>, !dbg !37
+  %893 = icmp ugt <4 x i32> %892, %737, !dbg !37
+  %894 = insertelement <4 x i32> %887, i32 %611, i64 1, !dbg !37
+  %895 = shufflevector <4 x i32> %894, <4 x i32> poison, <4 x i32> <i32 0, i32 1, i32 1, i32 1>, !dbg !37
+  %896 = icmp samesign ugt <4 x i32> %895, %738, !dbg !37
+  %897 = insertelement <4 x i32> poison, i32 %610, i64 0, !dbg !37
+  %898 = insertelement <4 x i32> %897, i32 %609, i64 1, !dbg !37
+  %899 = shufflevector <4 x i32> %898, <4 x i32> poison, <4 x i32> <i32 0, i32 0, i32 1, i32 0>, !dbg !37
+  %900 = insertelement <4 x i32> %685, i32 %604, i64 2, !dbg !37
+  %901 = icmp samesign ugt <4 x i32> %899, %900, !dbg !37
+  %902 = insertelement <4 x i1> poison, i1 %754, i64 0, !dbg !41
+  %903 = shufflevector <4 x i1> %902, <4 x i1> poison, <4 x i32> zeroinitializer, !dbg !41
+  %904 = and <4 x i1> %889, %903, !dbg !41
+  %905 = and <4 x i1> %904, %720, !dbg !41
+  %906 = insertelement <4 x i1> poison, i1 %752, i64 0, !dbg !41
+  %907 = shufflevector <4 x i1> %906, <4 x i1> poison, <4 x i32> zeroinitializer, !dbg !41
+  %908 = and <4 x i1> %893, %907, !dbg !41
+  %909 = and <4 x i1> %908, %720, !dbg !41
+  %910 = and <4 x i1> %896, %715, !dbg !41
+  %911 = insertelement <4 x i1> poison, i1 %750, i64 0, !dbg !41
+  %912 = shufflevector <4 x i1> %911, <4 x i1> poison, <4 x i32> zeroinitializer, !dbg !41
+  %913 = and <4 x i1> %912, %910, !dbg !41
+  %914 = and <4 x i1> %901, %715, !dbg !41
+  %915 = insertelement <4 x i1> poison, i1 %748, i64 0, !dbg !41
+  %916 = shufflevector <4 x i1> %915, <4 x i1> poison, <4 x i32> zeroinitializer, !dbg !41
+  %917 = and <4 x i1> %916, %914, !dbg !41
+  %918 = bitcast <4 x float> %867 to <4 x i32>, !dbg !33
+  %919 = select <4 x i1> %905, <4 x i32> %918, <4 x i32> zeroinitializer, !dbg !42
+  store <4 x i32> %919, ptr addrspace(3) %564, align 16, !dbg !33
+  store <4 x i32> zeroinitializer, ptr addrspace(3) %574, align 16, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %920 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %580) #2, !dbg !33
+  %921 = extractvalue { i32, i32, i32, i32 } %920, 0, !dbg !33
+  %922 = extractvalue { i32, i32, i32, i32 } %920, 1, !dbg !33
+  %923 = extractvalue { i32, i32, i32, i32 } %920, 2, !dbg !33
+  %924 = extractvalue { i32, i32, i32, i32 } %920, 3, !dbg !33
+  %925 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %582) #2, !dbg !33
+  %926 = extractvalue { i32, i32, i32, i32 } %925, 0, !dbg !33
+  %927 = extractvalue { i32, i32, i32, i32 } %925, 1, !dbg !33
+  %928 = extractvalue { i32, i32, i32, i32 } %925, 2, !dbg !33
+  %929 = extractvalue { i32, i32, i32, i32 } %925, 3, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %930 = bitcast <4 x float> %872 to <4 x i32>, !dbg !33
+  %931 = select <4 x i1> %909, <4 x i32> %930, <4 x i32> zeroinitializer, !dbg !42
+  store <4 x i32> %931, ptr addrspace(3) %564, align 16, !dbg !33
+  store <4 x i32> zeroinitializer, ptr addrspace(3) %574, align 16, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %932 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %580) #2, !dbg !33
+  %933 = extractvalue { i32, i32, i32, i32 } %932, 0, !dbg !33
+  %934 = extractvalue { i32, i32, i32, i32 } %932, 1, !dbg !33
+  %935 = extractvalue { i32, i32, i32, i32 } %932, 2, !dbg !33
+  %936 = extractvalue { i32, i32, i32, i32 } %932, 3, !dbg !33
+  %937 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %582) #2, !dbg !33
+  %938 = extractvalue { i32, i32, i32, i32 } %937, 0, !dbg !33
+  %939 = extractvalue { i32, i32, i32, i32 } %937, 1, !dbg !33
+  %940 = extractvalue { i32, i32, i32, i32 } %937, 2, !dbg !33
+  %941 = extractvalue { i32, i32, i32, i32 } %937, 3, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %942 = insertelement <4 x float> poison, float %832, i64 0, !dbg !36
+  %943 = insertelement <4 x float> %942, float %834, i64 1, !dbg !36
+  %944 = insertelement <4 x float> %943, float %836, i64 2, !dbg !36
+  %945 = insertelement <4 x float> %944, float %838, i64 3, !dbg !36
+  %946 = fmul <4 x float> %590, %945, !dbg !36
+  %947 = and <4 x i1> %912, %720, !dbg !43
+  %948 = bitcast <4 x float> %946 to <4 x i32>, !dbg !33
+  %949 = select <4 x i1> %947, <4 x i32> %948, <4 x i32> zeroinitializer, !dbg !42
+  store <4 x i32> %949, ptr addrspace(3) %564, align 16, !dbg !33
+  %950 = bitcast <4 x float> %877 to <4 x i32>, !dbg !33
+  %951 = select <4 x i1> %913, <4 x i32> %950, <4 x i32> zeroinitializer, !dbg !42
+  store <4 x i32> %951, ptr addrspace(3) %574, align 16, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %952 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %580) #2, !dbg !33
+  %953 = extractvalue { i32, i32, i32, i32 } %952, 0, !dbg !33
+  %954 = extractvalue { i32, i32, i32, i32 } %952, 1, !dbg !33
+  %955 = extractvalue { i32, i32, i32, i32 } %952, 2, !dbg !33
+  %956 = extractvalue { i32, i32, i32, i32 } %952, 3, !dbg !33
+  %957 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %582) #2, !dbg !33
+  %958 = extractvalue { i32, i32, i32, i32 } %957, 0, !dbg !33
+  %959 = extractvalue { i32, i32, i32, i32 } %957, 1, !dbg !33
+  %960 = extractvalue { i32, i32, i32, i32 } %957, 2, !dbg !33
+  %961 = extractvalue { i32, i32, i32, i32 } %957, 3, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %962 = insertelement <4 x float> poison, float %840, i64 0, !dbg !36
+  %963 = insertelement <4 x float> %962, float %842, i64 1, !dbg !36
+  %964 = insertelement <4 x float> %963, float %844, i64 2, !dbg !36
+  %965 = insertelement <4 x float> %964, float %846, i64 3, !dbg !36
+  %966 = fmul <4 x float> %598, %965, !dbg !36
+  %967 = and <4 x i1> %916, %720, !dbg !43
+  %968 = bitcast <4 x float> %966 to <4 x i32>, !dbg !33
+  %969 = select <4 x i1> %967, <4 x i32> %968, <4 x i32> zeroinitializer, !dbg !42
+  store <4 x i32> %969, ptr addrspace(3) %564, align 16, !dbg !33
+  %970 = bitcast <4 x float> %886 to <4 x i32>, !dbg !33
+  %971 = select <4 x i1> %917, <4 x i32> %970, <4 x i32> zeroinitializer, !dbg !42
+  store <4 x i32> %971, ptr addrspace(3) %574, align 16, !dbg !33
+  tail call void @llvm.nvvm.barrier.cta.sync.aligned.all(i32 0), !dbg !33
+  %972 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %580) #2, !dbg !33
+  %973 = extractvalue { i32, i32, i32, i32 } %972, 0, !dbg !33
+  %974 = extractvalue { i32, i32, i32, i32 } %972, 1, !dbg !33
+  %975 = extractvalue { i32, i32, i32, i32 } %972, 2, !dbg !33
+  %976 = extractvalue { i32, i32, i32, i32 } %972, 3, !dbg !33
+  %977 = tail call { i32, i32, i32, i32 } asm sideeffect "ldmatrix.sync.aligned.m8n8.x4.shared.b16 {$0, $1, $2, $3}, [$4];", "=r,=r,=r,=r,r"(i32 %582) #2, !dbg !33
+  %978 = extractvalue { i32, i32, i32, i32 } %977, 0, !dbg !33
+  %979 = extractvalue { i32, i32, i32, i32 } %977, 1, !dbg !33
+  %980 = extractvalue { i32, i32, i32, i32 } %977, 2, !dbg !33
+  %981 = extractvalue { i32, i32, i32, i32 } %977, 3, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %921, i32 %922, i32 %923, i32 %924, ptr addrspace(1) %635, i1 %668) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %933, i32 %934, i32 %935, i32 %936, ptr addrspace(1) %639, i1 %670) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %926, i32 %927, i32 %928, i32 %929, ptr addrspace(1) %643, i1 %672) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %938, i32 %939, i32 %940, i32 %941, ptr addrspace(1) %647, i1 %674) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %953, i32 %954, i32 %955, i32 %956, ptr addrspace(1) %651, i1 %676) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %973, i32 %974, i32 %975, i32 %976, ptr addrspace(1) %655, i1 %678) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %958, i32 %959, i32 %960, i32 %961, ptr addrspace(1) %659, i1 %680) #2, !dbg !33
+  tail call void asm sideeffect "@$5 st.global.v4.b32 [ $4 + 0 ], { $0, $1, $2, $3 };", "r,r,r,r,l,b"(i32 %978, i32 %979, i32 %980, i32 %981, ptr addrspace(1) %663, i1 %682) #2, !dbg !33
+  ret void, !dbg !44
+}
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare noundef range(i32 0, 2147483647) i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() #1
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare noundef range(i32 0, 65535) i32 @llvm.nvvm.read.ptx.sreg.ctaid.y() #1
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none)
+declare noundef range(i32 0, 1024) i32 @llvm.nvvm.read.ptx.sreg.tid.x() #1
+
+; Function Attrs: nounwind
+declare void @llvm.nvvm.cp.async.commit.group() #2
+
+; Function Attrs: nounwind
+declare void @llvm.nvvm.cp.async.wait.group(i32 immarg) #2
+
+; Function Attrs: convergent nocallback nounwind
+declare void @llvm.nvvm.barrier.cta.sync.aligned.all(i32) #3
+
+; Function Attrs: mustprogress nocallback nofree nosync nounwind willreturn memory(none)
+declare float @llvm.nvvm.ex2.approx.f(float) #4
+
+attributes #0 = { nounwind "nvvm.reqntid"="128" }
+attributes #1 = { mustprogress nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+attributes #2 = { nounwind }
+attributes #3 = { convergent nocallback nounwind }
+attributes #4 = { mustprogress nocallback nofree nosync nounwind willreturn memory(none) }
+
+!llvm.dbg.cu = !{!0}
+!llvm.module.flags = !{!2, !3}
+!nvvm.annotations = !{!4, !5}
+
+!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "triton", isOptimized: true, runtimeVersion: 0, emissionKind: LineTablesOnly)
+!1 = !DIFile(filename: "chunk_scaled_dot_kkt.py", directory: "/usr/local/lib/python3.12/site-packages/vllm/model_executor/layers/fla/ops")
+!2 = !{i32 2, !"Debug Info Version", i32 3}
+!3 = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+!4 = !{ptr @chunk_scaled_dot_kkt_fwd_kernel, !"reqntidx", i32 128}
+!5 = !{ptr @chunk_scaled_dot_kkt_fwd_kernel, !"smemsize", i32 16384}
+!6 = distinct !DISubprogram(name: "chunk_scaled_dot_kkt_fwd_kernel", linkageName: "chunk_scaled_dot_kkt_fwd_kernel", scope: !1, file: !1, line: 35, type: !7, scopeLine: 35, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0)
+!7 = !DISubroutineType(cc: DW_CC_normal, types: !8)
+!8 = !{}
+!9 = !DILocation(line: 51, column: 30, scope: !6)
+!10 = !DILocation(line: 51, column: 48, scope: !6)
+!11 = !DILocation(line: 64, column: 25, scope: !6)
+!12 = !DILocation(line: 52, column: 33, scope: !6)
+!13 = !DILocation(line: 65, column: 16, scope: !6)
+!14 = !DILocation(line: 65, column: 34, scope: !6)
+!15 = !DILocation(line: 69, column: 21, scope: !6)
+!16 = !DILocation(line: 69, column: 15, scope: !6)
+!17 = !DILocation(line: 69, column: 25, scope: !6)
+!18 = !DILocation(line: 69, column: 62, scope: !6)
+!19 = !DILocation(line: 71, column: 21, scope: !6)
+!20 = !DILocation(line: 76, column: 28, scope: !6)
+!21 = !DILocation(line: 76, column: 48, scope: !6)
+!22 = !DILocation(line: 76, column: 16, scope: !6)
+!23 = !DILocation(line: 83, column: 22, scope: !6)
+!24 = !DILocation(line: 84, column: 21, scope: !6)
+!25 = !DILocation(line: 74, column: 21, scope: !6)
+!26 = !DILocation(line: 85, column: 30, scope: !6)
+!27 = !DILocation(line: 85, column: 51, scope: !6)
+!28 = !DILocation(line: 85, column: 42, scope: !6)
+!29 = !DILocation(line: 88, column: 36, scope: !6)
+!30 = !DILocation(line: 88, column: 46, scope: !6)
+!31 = !DILocation(line: 96, column: 30, scope: !6)
+!32 = !DILocation(line: 96, column: 12, scope: !6)
+!33 = !DILocation(line: 98, column: 18, scope: !6)
+!34 = !DILocation(line: 65, column: 21, scope: !6)
+!35 = !DILocation(line: 66, column: 16, scope: !6)
+!36 = !DILocation(line: 91, column: 20, scope: !6)
+!37 = !DILocation(line: 93, column: 26, scope: !6)
+!38 = !DILocation(line: 89, column: 22, scope: !6)
+!39 = !DILocation(line: 90, column: 34, scope: !6)
+!40 = !DILocation(line: 91, column: 24, scope: !6)
+!41 = !DILocation(line: 93, column: 43, scope: !6)
+!42 = !DILocation(line: 94, column: 29, scope: !6)
+!43 = !DILocation(line: 93, column: 58, scope: !6)
+!44 = !DILocation(line: 98, column: 4, scope: !6)

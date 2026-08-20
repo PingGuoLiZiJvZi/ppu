@@ -19,6 +19,7 @@ from qwen35_fused.kernels import (
     layer_norm,
     lm_head_argmax,
     position_embed_add,
+    ppu_swiglu_gemv,
     qgkv_norm_rope,
     residual_add_rms_norm,
     residual_add_layer_norm,
@@ -210,6 +211,14 @@ def main() -> None:
     expected_mlp = F.silu(packed_mlp[:, :6144]) * packed_mlp[:, 6144:]
     results["silu_mul"] = error(silu_and_mul(packed_mlp), expected_mlp)
 
+    swiglu_x = torch.randn(1, 1, 2048, device=device, dtype=dtype)
+    swiglu_weight = torch.randn(12288, 2048, device=device, dtype=dtype)
+    swiglu_expected = silu_and_mul(F.linear(swiglu_x, swiglu_weight))
+    results["ppu_swiglu_gemv"] = error(
+        ppu_swiglu_gemv(swiglu_x, swiglu_weight),
+        swiglu_expected,
+    )
+
     gate = torch.randn(7, 2048, device=device, dtype=dtype)
     value = torch.randn_like(gate)
     results["sigmoid_mul"] = error(sigmoid_mul(value, gate), value * gate.sigmoid())
@@ -346,6 +355,21 @@ def main() -> None:
     actual = delta_recurrent_fused(qkv, packed_delta, a_log, dt_bias, actual_state, block_v=8)
     results["delta_output"] = error(actual, expected)
     results["delta_state"] = error(actual_state, reference_state)
+    precomputed_state = initial_state.clone()
+    precomputed = delta_recurrent_fused(
+        qkv,
+        packed_delta,
+        a_log,
+        dt_bias,
+        precomputed_state,
+        block_v=8,
+        precompute_factors=True,
+    )
+    results["delta_precomputed_output"] = error(precomputed, expected)
+    results["delta_precomputed_state"] = error(
+        precomputed_state,
+        reference_state,
+    )
 
     timing_x = torch.randn(1, 2048, device=device, dtype=dtype)
     timing_w = torch.randn(2048, device=device, dtype=dtype)

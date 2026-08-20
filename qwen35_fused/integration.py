@@ -17,6 +17,7 @@ from .kernels import (
     delta_recurrent_fused,
     gated_rms_norm,
     layer_norm,
+    ppu_swiglu_gemv,
     position_embed_add,
     qgkv_norm_rope,
     residual_add_layer_norm,
@@ -38,6 +39,9 @@ class FusionConfig:
     release_original_weights: bool = True
     delta_projection_padding: int = 128
     delta_block_v: int = 8
+    delta_precompute_factors: bool = True
+    ppu_swiglu_gemv: bool = True
+    ppu_swiglu_block_n: int = 8
 
 
 def _is_fast_tensor(x: torch.Tensor) -> bool:
@@ -158,15 +162,22 @@ def _patch_gated_norm_module(module: torch.nn.Module) -> None:
     module.forward = types.MethodType(forward, module)
 
 
-def _patch_mlp(module: torch.nn.Module) -> None:
+def _patch_mlp(module: torch.nn.Module, config: FusionConfig) -> None:
     if hasattr(module, "_fused_original_forward"):
         return
     module._fused_original_forward = module.forward
 
     def forward(self, x: torch.Tensor):
         if _is_fast_tensor(x):
-            packed = F.linear(x, self._fused_gate_up_weight)
-            activated = silu_and_mul(packed)
+            if config.ppu_swiglu_gemv and x.shape[:2] == (1, 1):
+                activated = ppu_swiglu_gemv(
+                    x.contiguous(),
+                    self._fused_gate_up_weight,
+                    block_n=config.ppu_swiglu_block_n,
+                )
+            else:
+                packed = F.linear(x, self._fused_gate_up_weight)
+                activated = silu_and_mul(packed)
             return self.down_proj(activated)
         return self._fused_original_forward(x)
 
@@ -244,6 +255,7 @@ def _patch_delta(
             self.dt_bias,
             recurrent_state,
             block_v=config.delta_block_v,
+            precompute_factors=config.delta_precompute_factors,
         )
         z_start = self.conv_dim
         z = packed[..., z_start : z_start + self.value_dim].reshape(-1, self.head_v_dim).contiguous()
@@ -686,7 +698,7 @@ def apply_fusions(model: torch.nn.Module, config: FusionConfig | None = None) ->
             _patch_norm_module(layer.input_layernorm)
             _patch_norm_module(layer.post_attention_layernorm)
         if config.swiglu:
-            _patch_mlp(layer.mlp)
+            _patch_mlp(layer.mlp, config)
         if hasattr(layer, "linear_attn") and config.delta:
             _patch_gated_norm_module(layer.linear_attn.norm)
             _patch_delta(layer.linear_attn, config)
@@ -704,4 +716,8 @@ def apply_fusions(model: torch.nn.Module, config: FusionConfig | None = None) ->
         _patch_vision_model(model.model.visual)
         stats["vision"] = len(model.model.visual.blocks)
     model._qwen35_fusion_config = config
+    stats["delta_precompute_factors"] = int(
+        config.delta and config.delta_precompute_factors
+    )
+    stats["ppu_swiglu_gemv"] = int(config.swiglu and config.ppu_swiglu_gemv)
     return stats

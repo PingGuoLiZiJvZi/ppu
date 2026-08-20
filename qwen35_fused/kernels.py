@@ -181,6 +181,89 @@ def silu_and_mul(packed: torch.Tensor) -> torch.Tensor:
 
 
 @triton.jit
+def _ppu_swiglu_gemv_kernel(
+    x_ptr,
+    packed_weight_ptr,
+    out_ptr,
+    output_width: tl.constexpr,
+    input_width: tl.constexpr,
+    block_n: tl.constexpr,
+    block_k: tl.constexpr,
+):
+    """M=1 BF16 GEMV with the Qwen SwiGLU epilogue kept in registers."""
+
+    block_id = tl.program_id(0)
+    output_indices = block_id * block_n + tl.arange(0, block_n)
+    output_mask = output_indices < output_width
+    gate_accumulator = tl.zeros((block_n,), tl.float32)
+    up_accumulator = tl.zeros((block_n,), tl.float32)
+    for k_start in range(0, input_width, block_k):
+        k = k_start + tl.arange(0, block_k)
+        k_mask = k < input_width
+        x = tl.load(x_ptr + k, mask=k_mask, other=0.0).to(tl.float32)
+        gate_weight = tl.load(
+            packed_weight_ptr + output_indices[:, None] * input_width + k[None, :],
+            mask=output_mask[:, None] & k_mask[None, :],
+            other=0.0,
+        ).to(tl.float32)
+        up_weight = tl.load(
+            packed_weight_ptr
+            + (output_width + output_indices[:, None]) * input_width
+            + k[None, :],
+            mask=output_mask[:, None] & k_mask[None, :],
+            other=0.0,
+        ).to(tl.float32)
+        gate_accumulator += tl.sum(gate_weight * x[None, :], axis=1)
+        up_accumulator += tl.sum(up_weight * x[None, :], axis=1)
+
+    # Match F.linear(BF16) followed by the existing eager-compatible fused
+    # SiLU kernel: both projections and SiLU are rounded before multiplication.
+    gate_bf16 = gate_accumulator.to(tl.bfloat16)
+    up_bf16 = up_accumulator.to(tl.bfloat16)
+    gate = gate_bf16.to(tl.float32)
+    silu_bf16 = (gate / (1.0 + tl.exp(-gate))).to(tl.bfloat16)
+    tl.store(
+        out_ptr + output_indices,
+        silu_bf16 * up_bf16,
+        mask=output_mask,
+    )
+
+
+def ppu_swiglu_gemv(
+    x: torch.Tensor,
+    packed_weight: torch.Tensor,
+    *,
+    block_n: int = 8,
+) -> torch.Tensor:
+    """PPU decode-only packed gate/up projection with fused SwiGLU."""
+
+    if x.ndim != 3 or x.shape[:2] != (1, 1) or x.dtype != torch.bfloat16:
+        raise ValueError("PPU SwiGLU GEMV expects BF16 x[1,1,K]")
+    if packed_weight.ndim != 2 or packed_weight.shape[0] % 2:
+        raise ValueError("packed SwiGLU weight must have shape [2N,K]")
+    if packed_weight.shape[1] != x.shape[-1] or packed_weight.dtype != x.dtype:
+        raise ValueError("PPU SwiGLU GEMV input and weight dimensions do not match")
+    if not x.is_contiguous() or not packed_weight.is_contiguous():
+        raise ValueError("PPU SwiGLU GEMV tensors must be contiguous")
+    if block_n not in (2, 4, 8):
+        raise ValueError("PPU SwiGLU GEMV block_n must be 2, 4 or 8")
+    output_width = packed_weight.shape[0] // 2
+    output = torch.empty((1, 1, output_width), device=x.device, dtype=x.dtype)
+    _ppu_swiglu_gemv_kernel[(triton.cdiv(output_width, block_n),)](
+        x,
+        packed_weight,
+        output,
+        output_width,
+        x.shape[-1],
+        block_n,
+        128,
+        num_warps=4,
+        num_stages=1,
+    )
+    return output
+
+
+@triton.jit
 def _sigmoid_mul_kernel(x_ptr, gate_ptr, out_ptr, n_elements: tl.constexpr, block: tl.constexpr):
     offsets = tl.program_id(0) * block + tl.arange(0, block)
     mask = offsets < n_elements
@@ -627,13 +710,69 @@ def causal_conv1d_fused(
     return out
 
 
-@triton.jit
+@triton.jit(do_not_specialize_on_alignment=["seq_len"])
+def _delta_prepare_factors_kernel(
+    qkv_ptr,
+    packed_ptr,
+    a_log_ptr,
+    dt_bias_ptr,
+    factor_ptr,
+    seq_len,
+    heads: tl.constexpr,
+    dim: tl.constexpr,
+    qkv_stride: tl.constexpr,
+    packed_stride: tl.constexpr,
+    a_offset: tl.constexpr,
+    b_offset: tl.constexpr,
+    block_k: tl.constexpr,
+):
+    """Compute tile-invariant DeltaNet scalars once per token and head."""
+
+    pid = tl.program_id(0)
+    head = pid % heads
+    token_flat = pid // heads
+    token = token_flat % seq_len
+    qkv_base = token_flat * qkv_stride
+    packed_base = token_flat * packed_stride
+    k_idx = tl.arange(0, block_k)
+    k_mask = k_idx < dim
+    q = tl.load(
+        qkv_ptr + qkv_base + head * dim + k_idx,
+        mask=k_mask,
+        other=0.0,
+    ).to(tl.float32)
+    k = tl.load(
+        qkv_ptr + qkv_base + heads * dim + head * dim + k_idx,
+        mask=k_mask,
+        other=0.0,
+    ).to(tl.float32)
+    # Preserve the v2 arithmetic order in the recurrent kernel. Folding the
+    # scale into q_inv here changes FP32 association and can flip close logits.
+    q_inv = tl.rsqrt(tl.sum(q * q, axis=0) + 1.0e-6)
+    k_inv = tl.rsqrt(tl.sum(k * k, axis=0) + 1.0e-6)
+    a = (
+        tl.load(packed_ptr + packed_base + a_offset + head).to(tl.float32)
+        + tl.load(dt_bias_ptr + head).to(tl.float32)
+    )
+    softplus = tl.where(a > 20.0, a, tl.log(1.0 + tl.exp(a)))
+    alpha = tl.exp(-tl.exp(tl.load(a_log_ptr + head).to(tl.float32)) * softplus)
+    b = tl.load(packed_ptr + packed_base + b_offset + head).to(tl.float32)
+    beta = 1.0 / (1.0 + tl.exp(-b))
+    factor_base = pid * 4
+    tl.store(factor_ptr + factor_base, q_inv)
+    tl.store(factor_ptr + factor_base + 1, k_inv)
+    tl.store(factor_ptr + factor_base + 2, alpha)
+    tl.store(factor_ptr + factor_base + 3, beta)
+
+
+@triton.jit(do_not_specialize_on_alignment=["seq_len"])
 def _delta_recurrent_kernel(
     qkv_ptr,
     packed_ptr,
     a_log_ptr,
     dt_bias_ptr,
     state_ptr,
+    factor_ptr,
     out_ptr,
     batch: tl.constexpr,
     seq_len,
@@ -646,6 +785,7 @@ def _delta_recurrent_kernel(
     b_offset: tl.constexpr,
     block_v: tl.constexpr,
     block_k: tl.constexpr,
+    use_precomputed_factors: tl.constexpr,
 ):
     pid = tl.program_id(0)
     tiles_per_head = tl.cdiv(dim, block_v)
@@ -662,8 +802,9 @@ def _delta_recurrent_kernel(
 
     state_offsets = ((batch_idx * heads + head) * dim + k_idx[None, :]) * dim + v_idx[:, None]
     state = tl.load(state_ptr + state_offsets, mask=matrix_mask, other=0.0).to(tl.float32)
-    a_log = tl.load(a_log_ptr + head).to(tl.float32)
-    dt_bias = tl.load(dt_bias_ptr + head).to(tl.float32)
+    if not use_precomputed_factors:
+        a_log = tl.load(a_log_ptr + head).to(tl.float32)
+        dt_bias = tl.load(dt_bias_ptr + head).to(tl.float32)
 
     for token in range(0, seq_len):
         qkv_base = (batch_idx * seq_len + token) * qkv_stride
@@ -676,17 +817,28 @@ def _delta_recurrent_kernel(
             qkv_ptr + qkv_base + 2 * heads * dim + head * dim + v_idx, mask=v_mask, other=0.0
         ).to(tl.float32)
 
-        q_inv = tl.rsqrt(tl.sum(q * q, axis=0) + 1.0e-6)
-        k_inv = tl.rsqrt(tl.sum(k * k, axis=0) + 1.0e-6)
-        q_hat = q * q_inv * (1.0 / math.sqrt(dim))
-        k_hat = k * k_inv
-
-        a = tl.load(packed_ptr + packed_base + a_offset + head).to(tl.float32) + dt_bias
-        softplus = tl.where(a > 20.0, a, tl.log(1.0 + tl.exp(a)))
-        g = -tl.exp(a_log) * softplus
-        alpha = tl.exp(g)
-        b = tl.load(packed_ptr + packed_base + b_offset + head).to(tl.float32)
-        beta = 1.0 / (1.0 + tl.exp(-b))
+        if use_precomputed_factors:
+            factor_base = ((batch_idx * seq_len + token) * heads + head) * 4
+            q_inv = tl.load(factor_ptr + factor_base)
+            k_inv = tl.load(factor_ptr + factor_base + 1)
+            alpha = tl.load(factor_ptr + factor_base + 2)
+            beta = tl.load(factor_ptr + factor_base + 3)
+            q_hat = q * q_inv * (1.0 / math.sqrt(dim))
+            k_hat = k * k_inv
+        else:
+            q_inv = tl.rsqrt(tl.sum(q * q, axis=0) + 1.0e-6)
+            k_inv = tl.rsqrt(tl.sum(k * k, axis=0) + 1.0e-6)
+            q_hat = q * q_inv * (1.0 / math.sqrt(dim))
+            k_hat = k * k_inv
+            a = (
+                tl.load(packed_ptr + packed_base + a_offset + head).to(tl.float32)
+                + dt_bias
+            )
+            softplus = tl.where(a > 20.0, a, tl.log(1.0 + tl.exp(a)))
+            g = -tl.exp(a_log) * softplus
+            alpha = tl.exp(g)
+            b = tl.load(packed_ptr + packed_base + b_offset + head).to(tl.float32)
+            beta = 1.0 / (1.0 + tl.exp(-b))
 
         state *= alpha
         memory_k = tl.sum(state * k_hat[None, :], axis=1)
@@ -707,6 +859,7 @@ def delta_recurrent_fused(
     state: torch.Tensor,
     *,
     block_v: int = 8,
+    precompute_factors: bool = False,
 ) -> torch.Tensor:
     """Sequential gated-delta recurrence for prefill and single-token decode.
 
@@ -729,6 +882,34 @@ def delta_recurrent_fused(
     if packed_width < b_offset + heads:
         raise ValueError(f"packed projection width {packed_width} is smaller than {b_offset + heads}")
     out = torch.empty((batch, seq_len, heads, dim), device=qkv.device, dtype=qkv.dtype)
+    use_precomputed_factors = bool(precompute_factors and seq_len > 1)
+    if use_precomputed_factors:
+        factors = torch.empty(
+            (batch, seq_len, heads, 4),
+            device=qkv.device,
+            dtype=torch.float32,
+        )
+        _delta_prepare_factors_kernel[(batch * seq_len * heads,)](
+            qkv,
+            packed_projection,
+            a_log,
+            dt_bias,
+            factors,
+            seq_len,
+            heads,
+            dim,
+            qkv_width,
+            packed_width,
+            a_offset,
+            b_offset,
+            triton.next_power_of_2(dim),
+            num_warps=4,
+            num_stages=1,
+        )
+    else:
+        # Triton pointer arguments cannot be None. The constexpr branch makes
+        # this alias unreachable in the original v2 kernel specialization.
+        factors = qkv
     grid = (batch * heads * triton.cdiv(dim, block_v),)
     _delta_recurrent_kernel[grid](
         qkv,
@@ -736,6 +917,7 @@ def delta_recurrent_fused(
         a_log,
         dt_bias,
         state,
+        factors,
         out,
         batch,
         seq_len,
@@ -748,6 +930,7 @@ def delta_recurrent_fused(
         b_offset,
         block_v,
         triton.next_power_of_2(dim),
+        use_precomputed_factors,
         num_warps=4,
         num_stages=1,
     )

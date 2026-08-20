@@ -42,6 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=20260625)
     parser.add_argument("--warmup-samples", type=int, default=2)
+    parser.add_argument("--output-dir", type=Path, default=Path("."))
     return parser.parse_args()
 
 
@@ -241,13 +242,15 @@ def run_one(
 def main() -> None:
     args = parse_args()
     script_dir = Path(__file__).resolve().parent
+    output_dir = (script_dir / args.output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     summaries = []
     for label, relative_dataset, relative_output in DATASETS:
         payload = run_one(
             label=label,
             dataset_path=script_dir / relative_dataset,
-            output_path=script_dir / relative_output,
+            output_path=output_dir / relative_output,
             model_path=str((script_dir / args.model_path).resolve()),
             device=args.device,
             seed=args.seed,

@@ -49,6 +49,8 @@ class VLMModel:
         self._processor = None
         self._tokenizer = None
         self._backend_name = "dummy"
+        self._decode_caches: dict[int, Any] = {}
+        self._decode_graphs: dict[int, Any] = {}
 
         if backend in {"auto", "transformers"}:
             try:
@@ -236,13 +238,22 @@ class VLMModel:
         inputs = inputs.to(self._model.device)
         input_len = int(inputs.input_ids.shape[-1])
         max_new_tokens = max(1, int(generation_config.max_new_tokens))
+        required_cache_len = input_len + max_new_tokens + 1
+        cache_bucket = max(512, ((required_cache_len + 127) // 128) * 128)
+        graph_steps = max(1, int(os.environ.get("QWEN35_GRAPH_STEPS", "1")))
 
         start = time.perf_counter()
-        cache = StaticCache(
-            config=self._model.config,
-            max_cache_len=input_len + max_new_tokens + 1,
-        )
+        cache = self._decode_caches.get(cache_bucket)
+        cache_is_new = cache is None
+        if cache_is_new:
+            cache = StaticCache(
+                config=self._model.config,
+                max_cache_len=cache_bucket,
+            )
+            self._decode_caches[cache_bucket] = cache
         with torch.inference_mode():
+            if not cache_is_new:
+                cache.reset()
             prefill = self._model.model(
                 **inputs,
                 past_key_values=cache,
@@ -270,8 +281,9 @@ class VLMModel:
                 + self._model.model.rope_deltas.unsqueeze(0)
             )
 
-            # One eager decode initializes the decode-only kernels before graph capture.
-            if len(generated) < max_new_tokens and generated[-1] not in eos_ids:
+            runner = self._decode_graphs.get(cache_bucket)
+            graph_was_reused = runner is not None
+            if runner is None and len(generated) < max_new_tokens and generated[-1] not in eos_ids:
                 decode = self._model.model(
                     input_ids=token,
                     attention_mask=None,
@@ -288,16 +300,25 @@ class VLMModel:
                 first_position.add_(1)
 
             if len(generated) < max_new_tokens and generated[-1] not in eos_ids:
-                runner = GreedyDecodeGraph(
-                    self._model,
-                    cache,
-                    token,
-                    first_position,
-                    fused_lm_head=True,
-                )
+                if runner is None:
+                    runner = GreedyDecodeGraph(
+                        self._model,
+                        cache,
+                        token,
+                        first_position,
+                        fused_lm_head=True,
+                        steps=graph_steps,
+                    )
+                    self._decode_graphs[cache_bucket] = runner
+                else:
+                    runner.set_inputs(token, first_position)
                 while len(generated) < max_new_tokens and generated[-1] not in eos_ids:
-                    token = runner.replay()
-                    generated.append(int(token.item()))
+                    chunk = runner.replay().reshape(-1).tolist()
+                    remaining = max_new_tokens - len(generated)
+                    for token_id in chunk[:remaining]:
+                        generated.append(int(token_id))
+                        if generated[-1] in eos_ids:
+                            break
 
         end = time.perf_counter()
         generated_tensor = torch.tensor(generated, dtype=torch.long)
@@ -314,6 +335,10 @@ class VLMModel:
             meta={
                 "backend": "transformers-fused",
                 "cuda_graph": len(generated) > 2,
+                "cuda_graph_steps": graph_steps,
+                "cache_bucket": cache_bucket,
+                "cache_reused": not cache_is_new,
+                "cuda_graph_reused": graph_was_reused,
                 "fusion_stats": self._fusion_stats,
             },
         )

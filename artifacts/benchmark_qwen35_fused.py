@@ -75,8 +75,10 @@ def main() -> None:
     wrapper = VLMModel(str(ROOT / "Qwen3.5-2B"), backend="transformers", device="auto")
     model = wrapper._model
     processor = wrapper._processor
+    memory_before_fusion = int(torch.cuda.memory_allocated())
     fusion_config = variant_config(args.variant)
     fusion_stats = apply_fusions(model, fusion_config) if fusion_config is not None else {}
+    memory_after_fusion = int(torch.cuda.memory_allocated())
     load_seconds = time.perf_counter() - load_start
 
     messages = [{
@@ -204,6 +206,11 @@ def main() -> None:
         "load_seconds": load_seconds,
         "input_tokens": int(inputs.input_ids.shape[-1]),
         "fusion_stats": fusion_stats,
+        "memory": {
+            "before_fusion_allocated_bytes": memory_before_fusion,
+            "after_fusion_allocated_bytes": memory_after_fusion,
+            "fusion_allocated_delta_bytes": memory_after_fusion - memory_before_fusion,
+        },
         "static_cache": args.static_cache,
         "cuda_graph": args.cuda_graph,
         "warmup": warmup,

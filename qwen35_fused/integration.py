@@ -35,6 +35,7 @@ class FusionConfig:
     swiglu: bool = True
     attention: bool = True
     vision: bool = True
+    release_original_weights: bool = True
     delta_projection_padding: int = 128
     delta_block_v: int = 8
 
@@ -50,9 +51,22 @@ def _register_buffer(module: torch.nn.Module, name: str, value: torch.Tensor) ->
         module.register_buffer(name, value, persistent=False)
 
 
+def _release_linear_weight(module: torch.nn.Module) -> int:
+    weight = module.weight
+    released_bytes = weight.numel() * weight.element_size()
+    module.register_parameter("weight", None)
+    return released_bytes
+
+
 def _pack_linear_weights(model: torch.nn.Module, config: FusionConfig) -> dict[str, int]:
     text_model = model.model.language_model
-    stats = {"delta": 0, "mlp": 0, "attention": 0, "vision": 0}
+    stats = {
+        "delta": 0,
+        "mlp": 0,
+        "attention": 0,
+        "vision": 0,
+        "released_weight_bytes": 0,
+    }
     for layer in text_model.layers:
         if hasattr(layer, "linear_attn") and config.delta:
             delta = layer.linear_attn
@@ -64,31 +78,56 @@ def _pack_linear_weights(model: torch.nn.Module, config: FusionConfig) -> dict[s
                     delta.in_proj_b.weight,
                 ),
                 dim=0,
-            ).contiguous()
+            ).contiguous().detach()
             if config.delta_projection_padding:
                 pad_rows = (-packed.shape[0]) % config.delta_projection_padding
                 if pad_rows:
                     packed = F.pad(packed, (0, 0, 0, pad_rows))
             _register_buffer(delta, "_fused_in_proj_weight", packed)
+            if config.release_original_weights:
+                stats["released_weight_bytes"] += sum(
+                    _release_linear_weight(projection)
+                    for projection in (
+                        delta.in_proj_qkv,
+                        delta.in_proj_z,
+                        delta.in_proj_a,
+                        delta.in_proj_b,
+                    )
+                )
             stats["delta"] += 1
 
         if config.swiglu:
             mlp = layer.mlp
-            gate_up = torch.cat((mlp.gate_proj.weight, mlp.up_proj.weight), dim=0).contiguous()
+            gate_up = (
+                torch.cat((mlp.gate_proj.weight, mlp.up_proj.weight), dim=0)
+                .contiguous()
+                .detach()
+            )
             _register_buffer(mlp, "_fused_gate_up_weight", gate_up)
+            if config.release_original_weights:
+                stats["released_weight_bytes"] += _release_linear_weight(mlp.gate_proj)
+                stats["released_weight_bytes"] += _release_linear_weight(mlp.up_proj)
             stats["mlp"] += 1
 
         if hasattr(layer, "self_attn") and config.attention:
             attention = layer.self_attn
             qgkv = torch.cat(
                 (attention.q_proj.weight, attention.k_proj.weight, attention.v_proj.weight), dim=0
-            ).contiguous()
+            ).contiguous().detach()
             _register_buffer(attention, "_fused_qgkv_weight", qgkv)
+            if config.release_original_weights:
+                stats["released_weight_bytes"] += _release_linear_weight(attention.q_proj)
+                stats["released_weight_bytes"] += _release_linear_weight(attention.k_proj)
+                stats["released_weight_bytes"] += _release_linear_weight(attention.v_proj)
             biases = (attention.q_proj.bias, attention.k_proj.bias, attention.v_proj.bias)
             if any(bias is not None for bias in biases):
                 if not all(bias is not None for bias in biases):
                     raise ValueError("Qwen3.5 attention projection biases must be all present or all absent")
-                _register_buffer(attention, "_fused_qgkv_bias", torch.cat(biases).contiguous())
+                _register_buffer(
+                    attention,
+                    "_fused_qgkv_bias",
+                    torch.cat(biases).contiguous().detach(),
+                )
             stats["attention"] += 1
     return stats
 
@@ -163,7 +202,10 @@ def _delta_cache_tensors(
     return cache_layer.conv_states[0], cache_layer.recurrent_states[0]
 
 
-def _patch_delta(module: torch.nn.Module, config: FusionConfig) -> None:
+def _patch_delta(
+    module: torch.nn.Module,
+    config: FusionConfig,
+) -> None:
     if hasattr(module, "_fused_original_forward"):
         return
     module._fused_original_forward = module.forward

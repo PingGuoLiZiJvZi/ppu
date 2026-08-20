@@ -23,11 +23,14 @@ class GreedyDecodeGraph:
         position_ids: torch.Tensor,
         *,
         fused_lm_head: bool = True,
+        steps: int = 1,
     ) -> None:
         if token.shape[-1] != 1 or token.dtype != torch.long or not token.is_cuda:
             raise ValueError("token must be a CUDA int64 tensor with sequence length 1")
         if not position_ids.is_cuda:
             raise ValueError("position_ids must be on the PPU")
+        if steps < 1:
+            raise ValueError("steps must be positive")
         self.model = model
         self.cache = cache
         self.token = token.clone()
@@ -35,35 +38,57 @@ class GreedyDecodeGraph:
         self.graph = torch.cuda.CUDAGraph()
         self.logits = None
         self.fused_lm_head = fused_lm_head
+        self.steps = steps
+        self.output_tokens = None
+        if steps > 1:
+            self.output_tokens = torch.empty(
+                (steps, *self.token.shape),
+                device=self.token.device,
+                dtype=self.token.dtype,
+            )
 
         torch.cuda.synchronize()
         with torch.cuda.graph(self.graph):
-            if self.fused_lm_head:
-                outputs = self.model.model(
-                    input_ids=self.token,
-                    attention_mask=None,
-                    position_ids=self.position_ids,
-                    past_key_values=self.cache,
-                    use_cache=True,
-                    return_dict=True,
-                )
-                hidden = outputs.last_hidden_state[:, -1, :].contiguous()
-                next_token = lm_head_argmax(hidden, self.model.lm_head.weight)
-            else:
-                outputs = self.model(
-                    input_ids=self.token,
-                    attention_mask=None,
-                    position_ids=self.position_ids,
-                    past_key_values=self.cache,
-                    use_cache=True,
-                    logits_to_keep=1,
-                    return_dict=True,
-                )
-                self.logits = outputs.logits
-                next_token = self.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-            self.token.copy_(next_token)
-            self.position_ids.add_(1)
+            for step in range(self.steps):
+                if self.fused_lm_head:
+                    outputs = self.model.model(
+                        input_ids=self.token,
+                        attention_mask=None,
+                        position_ids=self.position_ids,
+                        past_key_values=self.cache,
+                        use_cache=True,
+                        return_dict=True,
+                    )
+                    hidden = outputs.last_hidden_state[:, -1, :].contiguous()
+                    next_token = lm_head_argmax(hidden, self.model.lm_head.weight)
+                else:
+                    outputs = self.model(
+                        input_ids=self.token,
+                        attention_mask=None,
+                        position_ids=self.position_ids,
+                        past_key_values=self.cache,
+                        use_cache=True,
+                        logits_to_keep=1,
+                        return_dict=True,
+                    )
+                    self.logits = outputs.logits
+                    next_token = self.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+                if self.output_tokens is not None:
+                    self.output_tokens[step].copy_(next_token)
+                self.token.copy_(next_token)
+                self.position_ids.add_(1)
+
+    def set_inputs(self, token: torch.Tensor, position_ids: torch.Tensor) -> None:
+        """Set the first token and position for the next graph replay."""
+
+        if token.shape != self.token.shape or position_ids.shape != self.position_ids.shape:
+            raise ValueError("graph input shapes do not match the captured buffers")
+        self.token.copy_(token)
+        self.position_ids.copy_(position_ids)
 
     def replay(self) -> torch.Tensor:
         self.graph.replay()
-        return self.token
+        if self.steps == 1:
+            return self.token
+        assert self.output_tokens is not None
+        return self.output_tokens

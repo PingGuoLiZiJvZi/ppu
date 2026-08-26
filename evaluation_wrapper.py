@@ -114,7 +114,106 @@ class VLMModel:
             from qwen35_fused.integration import apply_fusions
 
             self._fusion_stats = apply_fusions(self._model)
+            self._prewarm_decode_buckets()
+            self._prewarm_vision_graphs()
         self._tokenizer = getattr(self._processor, "tokenizer", None)
+
+    def _prewarm_decode_buckets(self, buckets: tuple[int, ...] = (512, 640, 768, 896, 1024)) -> None:
+        """Allocate every length bucket's cache and decode graph at load time.
+
+        Without this, the first sample in each bucket pays cache allocation,
+        an eager decode step and graph capture (100-300 ms) inside its timing.
+        """
+
+        import torch
+
+        from transformers.cache_utils import StaticCache
+
+        from qwen35_fused.graph import GreedyDecodeGraph
+        from qwen35_fused.kernels import lm_head_argmax
+
+        model = self._model
+        device = model.device
+        eos = model.generation_config.eos_token_id
+        fill_id = int(eos[0]) if isinstance(eos, (list, tuple)) else int(eos or 0)
+        graph_steps = max(1, int(os.environ.get("QWEN35_GRAPH_STEPS", "1")))
+        for bucket in buckets:
+            input_len = bucket - 256 - 1
+            input_ids = torch.full((1, input_len), fill_id, device=device, dtype=torch.long)
+            attention_mask = torch.ones_like(input_ids)
+            try:
+                with torch.inference_mode():
+                    cache = StaticCache(config=model.config, max_cache_len=bucket)
+                    prefill = model.model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        past_key_values=cache,
+                        use_cache=True,
+                        return_dict=True,
+                    )
+                    token = lm_head_argmax(
+                        prefill.last_hidden_state[:, -1, :].contiguous(),
+                        model.lm_head.weight,
+                    )
+                    position = (
+                        attention_mask.long().sum(dim=-1, keepdim=True).unsqueeze(0)
+                        + model.model.rope_deltas.unsqueeze(0)
+                    )
+                    runner = GreedyDecodeGraph(
+                        model,
+                        cache,
+                        token,
+                        position,
+                        fused_lm_head=True,
+                        steps=graph_steps,
+                    )
+                    runner.replay()
+            except Exception:
+                # A failed warmup only costs the lazy path on first use.
+                self._decode_caches.pop(bucket, None)
+                self._decode_graphs.pop(bucket, None)
+                continue
+            self._decode_caches[bucket] = cache
+            self._decode_graphs[bucket] = runner
+
+    # (grid_h, grid_w) pairs for the most common MMBench patch counts; the
+    # graph key is the patch count only, so any valid factor pair works.
+    _VISION_WARMUP_GRIDS: tuple[tuple[int, int], ...] = (
+        (24, 32), (16, 24), (22, 32), (14, 20), (20, 32), (16, 16), (18, 32),
+        (32, 32), (16, 32), (16, 20), (18, 16), (30, 32), (20, 30), (28, 32),
+        (14, 22), (12, 22), (20, 24), (10, 30),
+    )
+
+    def _prewarm_vision_graphs(self) -> None:
+        """Capture a decode-free CUDA graph of the Vision blocks for common shapes."""
+
+        import torch
+
+        visual = self._model.model.visual
+        if not hasattr(visual, "_vision_graphs"):
+            return
+        device = self._model.device
+        for grid_h, grid_w in self._VISION_WARMUP_GRIDS:
+            patches = grid_h * grid_w
+            if patches in visual._vision_graphs:
+                continue
+            vcfg = visual.config
+            pixel_width = (
+                vcfg.in_channels
+                * vcfg.temporal_patch_size
+                * vcfg.patch_size
+                * vcfg.patch_size
+            )
+            pixel_values = torch.zeros(
+                (patches, pixel_width), device=device, dtype=torch.bfloat16
+            )
+            grid_thw = torch.tensor([[1, grid_h, grid_w]], device=device, dtype=torch.long)
+            try:
+                with torch.inference_mode():
+                    visual(pixel_values, grid_thw=grid_thw)
+            except Exception:
+                # Unknown shapes fall back to the eager path and lazy capture.
+                continue
 
     def _load_dummy_backend(self, reason: str) -> None:
         self._dummy_reason = reason

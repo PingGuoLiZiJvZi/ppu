@@ -28,6 +28,7 @@ def main() -> None:
         causal_conv1d_fused,
         delta_recurrent_fused,
         gated_rms_norm,
+        gqa_decode_attention,
         layer_norm,
         lm_head_argmax,
         position_embed_add,
@@ -200,6 +201,17 @@ def main() -> None:
             (2 * intermediate_width, text_width), device=device, dtype=dtype
         ),
         block_n=8,
+    )
+    # Decode GQA attention: one specialization per cache length class; every
+    # bucket length is a multiple of 128, so 512 covers 640..1024 as well.
+    gqa_decode_attention(
+        torch.zeros(
+            (1, attention_heads, 1, attention_dim), device=device, dtype=dtype
+        ),
+        key_cache,
+        value_cache,
+        torch.ones((), device=device, dtype=torch.int64),
+        0.0625,
     )
     lm_head_argmax(
         torch.zeros((1, text_width), device=device, dtype=dtype),

@@ -15,6 +15,7 @@ from .kernels import (
     attention_gate_mul,
     causal_conv1d_fused,
     delta_recurrent_fused,
+    gqa_decode_attention,
     gated_rms_norm,
     layer_norm,
     ppu_swiglu_gemv,
@@ -42,6 +43,9 @@ class FusionConfig:
     delta_precompute_factors: bool = True
     ppu_swiglu_gemv: bool = True
     ppu_swiglu_block_n: int = 8
+    gqa_decode_attention: bool = True
+    vision_graph: bool = True
+    vision_graph_max_entries: int = 48
 
 
 def _is_fast_tensor(x: torch.Tensor) -> bool:
@@ -270,7 +274,7 @@ def _patch_delta(
     module.forward = types.MethodType(forward, module)
 
 
-def _patch_attention(module: torch.nn.Module) -> None:
+def _patch_attention(module: torch.nn.Module, config: FusionConfig) -> None:
     if hasattr(module, "_fused_original_forward"):
         return
     module._fused_original_forward = module.forward
@@ -336,6 +340,23 @@ def _patch_attention(module: torch.nn.Module) -> None:
             key_states, value_states = past_key_values.update(
                 key_states, value_states, self.layer_idx
             )
+        if (
+            config.gqa_decode_attention
+            and cache_layer is not None
+            and hidden_states.shape[1] == 1
+        ):
+            # Masked SDPA on the full static cache costs ~9x the maskless
+            # kernel on PPU; the custom kernel reads the GVA cache directly
+            # and takes the valid prefix length from the device.
+            attn_output = gqa_decode_attention(
+                query_states,
+                cache_layer.keys,
+                cache_layer.values,
+                cache_layer.cumulative_length,
+                self.scaling,
+            )
+            attn_output = attention_gate_mul(attn_output, packed, self.head_dim)
+            return self.o_proj(attn_output), None
         attention_interface = qwen_impl.ALL_ATTENTION_FUNCTIONS.get_interface(
             self.config._attn_implementation, qwen_impl.eager_attention_forward
         )
@@ -408,6 +429,12 @@ def _patch_text_model(text_model: torch.nn.Module, config: FusionConfig) -> None
         if isinstance(attention_mask, dict):
             causal_mask_mapping = attention_mask
         else:
+            static_decode = (
+                config.gqa_decode_attention
+                and inputs_embeds.shape[1] == 1
+                and past_key_values is not None
+                and hasattr(past_key_values.layers[0], "max_cache_len")
+            )
             mask_kwargs = {
                 "config": self.config,
                 "inputs_embeds": inputs_embeds,
@@ -416,7 +443,11 @@ def _patch_text_model(text_model: torch.nn.Module, config: FusionConfig) -> None
                 "position_ids": text_position_ids,
             }
             causal_mask_mapping = {
-                "full_attention": qwen_impl.create_causal_mask(**mask_kwargs),
+                "full_attention": (
+                    None
+                    if static_decode
+                    else qwen_impl.create_causal_mask(**mask_kwargs)
+                ),
                 "linear_attention": qwen_impl.create_recurrent_attention_mask(**mask_kwargs),
             }
 
@@ -475,34 +506,28 @@ def _patch_text_model(text_model: torch.nn.Module, config: FusionConfig) -> None
     text_model.forward = types.MethodType(forward, text_model)
 
 
-def _patch_vision_model(vision_model: torch.nn.Module) -> None:
+def _patch_vision_model(vision_model: torch.nn.Module, config: FusionConfig) -> None:
     if hasattr(vision_model, "_fused_original_forward"):
         return
     vision_model._fused_original_forward = vision_model.forward
+    vision_model._vision_graphs: dict[int, Any] = {}
 
-    def forward(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor, **kwargs):
-        if not _is_fast_tensor(hidden_states):
-            return self._fused_original_forward(hidden_states, grid_thw, **kwargs)
-        interp_indices, interp_weights = qwen_impl.get_vision_interpolation_indices_and_weights(
-            grid_thw,
-            num_grid_per_side=self.num_grid_per_side,
-            mode=self.interpolation_mode,
-            align_corners=self.interpolation_align_corners,
-            spatial_merge_size=self.config.spatial_merge_size,
-            kwargs=kwargs,
-        )
-        position_ids = qwen_impl.get_vision_position_ids(
-            grid_thw, self.spatial_merge_size, kwargs=kwargs
-        )
-        cu_seqlens, max_seqlen = qwen_impl.get_vision_attention_seqlens(
-            grid_thw, self.config, kwargs=kwargs
-        )
-        hidden_states = self.patch_embed(hidden_states)
+    def run_blocks(
+        self,
+        patch_hidden: torch.Tensor,
+        interp_indices: torch.Tensor,
+        interp_weights: torch.Tensor,
+        position_ids: torch.Tensor,
+        cu_seqlens: torch.Tensor,
+        max_seqlen: int | None,
+    ) -> torch.Tensor:
+        """Position embedding, RoPE tables and all Vision blocks for one image."""
+
         hidden_states = position_embed_add(
-            hidden_states.contiguous(),
+            patch_hidden,
             self.pos_embed.weight,
-            interp_indices.contiguous(),
-            interp_weights.contiguous(),
+            interp_indices,
+            interp_weights,
         )
         rotary_pos_emb = self.rotary_pos_emb(position_ids)
         seq_len, _ = hidden_states.shape
@@ -519,7 +544,6 @@ def _patch_vision_model(vision_model: torch.nn.Module) -> None:
                 cu_seqlens=cu_seqlens,
                 max_seqlen=max_seqlen,
                 position_embeddings=position_embeddings,
-                **kwargs,
             )
             residual, mlp_input = residual_add_layer_norm(
                 residual,
@@ -540,7 +564,74 @@ def _patch_vision_model(vision_model: torch.nn.Module) -> None:
                 )
             else:
                 hidden_states = residual + mlp_update
+        return hidden_states
 
+    def forward(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor, **kwargs):
+        if not _is_fast_tensor(hidden_states):
+            return self._fused_original_forward(hidden_states, grid_thw, **kwargs)
+        interp_indices, interp_weights = qwen_impl.get_vision_interpolation_indices_and_weights(
+            grid_thw,
+            num_grid_per_side=self.num_grid_per_side,
+            mode=self.interpolation_mode,
+            align_corners=self.interpolation_align_corners,
+            spatial_merge_size=self.config.spatial_merge_size,
+            kwargs=kwargs,
+        )
+        position_ids = qwen_impl.get_vision_position_ids(
+            grid_thw, self.spatial_merge_size, kwargs=kwargs
+        )
+        cu_seqlens, max_seqlen = qwen_impl.get_vision_attention_seqlens(
+            grid_thw, self.config, kwargs=kwargs
+        )
+        patch_hidden = self.patch_embed(hidden_states).contiguous()
+        num_patches = patch_hidden.shape[0]
+        entry = self._vision_graphs.get(num_patches) if config.vision_graph else None
+        if entry is not None:
+            entry["hidden"].copy_(patch_hidden)
+            entry["interp_indices"].copy_(interp_indices)
+            entry["interp_weights"].copy_(interp_weights)
+            entry["position_ids"].copy_(position_ids)
+            entry["graph"].replay()
+            out_hidden = entry["out"]
+        else:
+            out_hidden = run_blocks(
+                self,
+                patch_hidden,
+                interp_indices.contiguous(),
+                interp_weights.contiguous(),
+                position_ids.contiguous(),
+                cu_seqlens.contiguous(),
+                max_seqlen,
+            )
+            if (
+                config.vision_graph
+                and len(self._vision_graphs) < config.vision_graph_max_entries
+                and cu_seqlens.numel() == 2
+            ):
+                graph = torch.cuda.CUDAGraph()
+                static = {
+                    "hidden": patch_hidden.clone(),
+                    "interp_indices": interp_indices.contiguous().clone(),
+                    "interp_weights": interp_weights.contiguous().clone(),
+                    "position_ids": position_ids.contiguous().clone(),
+                    "cu_seqlens": cu_seqlens.contiguous().clone(),
+                }
+                torch.cuda.synchronize()
+                with torch.cuda.graph(graph):
+                    static["out"] = run_blocks(
+                        self,
+                        static["hidden"],
+                        static["interp_indices"],
+                        static["interp_weights"],
+                        static["position_ids"],
+                        static["cu_seqlens"],
+                        max_seqlen,
+                    )
+                static["graph"] = graph
+                self._vision_graphs[num_patches] = static
+                # Capture records but does not execute; this request keeps the
+                # eager result and the graph serves later requests.
+        hidden_states = out_hidden
         merged_hidden_states = self.merger(hidden_states)
         return qwen_impl.BaseModelOutputWithPooling(
             last_hidden_state=hidden_states,
@@ -705,7 +796,7 @@ def apply_fusions(model: torch.nn.Module, config: FusionConfig | None = None) ->
         if hasattr(layer, "self_attn") and config.attention:
             _patch_norm_module(layer.self_attn.q_norm)
             _patch_norm_module(layer.self_attn.k_norm)
-            _patch_attention(layer.self_attn)
+            _patch_attention(layer.self_attn, config)
     if config.rms_norm:
         _patch_norm_module(text_model.norm)
     if config.residual_norm:
@@ -713,7 +804,7 @@ def apply_fusions(model: torch.nn.Module, config: FusionConfig | None = None) ->
     if config.vision:
         for block in model.model.visual.blocks:
             _patch_vision_attention(block.attn)
-        _patch_vision_model(model.model.visual)
+        _patch_vision_model(model.model.visual, config)
         stats["vision"] = len(model.model.visual.blocks)
     model._qwen35_fusion_config = config
     stats["delta_precompute_factors"] = int(

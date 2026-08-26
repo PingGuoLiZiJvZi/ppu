@@ -938,6 +938,159 @@ def delta_recurrent_fused(
 
 
 @triton.jit
+def _gqa_decode_attn_splitkv_kernel(
+    q_ptr,
+    k_ptr,
+    v_ptr,
+    len_ptr,
+    acc_ptr,
+    ml_ptr,
+    cache_len,
+    scale,
+    q_heads: tl.constexpr,
+    kv_heads: tl.constexpr,
+    head_dim: tl.constexpr,
+    splits: tl.constexpr,
+    block_n: tl.constexpr,
+):
+    """Maskless split-KV GQA attention for one decode step over a static cache.
+
+    The valid prefix length is read from the device scalar ``len_ptr`` so the
+    kernel keeps a fixed grid and loop structure inside a captured graph.
+    """
+
+    head = tl.program_id(0)
+    split = tl.program_id(1)
+    group: tl.constexpr = q_heads // kv_heads
+    kv_head = head // group
+    d = tl.arange(0, head_dim)
+
+    q = tl.load(q_ptr + head * head_dim + d).to(tl.float32) * scale
+    n_valid = tl.load(len_ptr).to(tl.int32)
+    chunk = tl.cdiv(cache_len, splits)
+    n_start = split * chunk
+    n_end = tl.minimum(n_start + chunk, n_valid)
+
+    kv_base = kv_head * cache_len * head_dim
+    m_i = -float("inf")
+    l_i = 0.0
+    acc = tl.zeros((head_dim,), tl.float32)
+
+    for start in range(n_start, n_end, block_n):
+        n = start + tl.arange(0, block_n)
+        mask = n < n_end
+        k = tl.load(
+            k_ptr + kv_base + n[:, None] * head_dim + d[None, :],
+            mask=mask[:, None],
+            other=0.0,
+        ).to(tl.float32)
+        scores = tl.sum(k * q[None, :], axis=1)
+        scores = tl.where(mask, scores, -float("inf"))
+        m_new = tl.maximum(m_i, tl.max(scores, axis=0))
+        p = tl.exp(scores - m_new)
+        v = tl.load(
+            v_ptr + kv_base + n[:, None] * head_dim + d[None, :],
+            mask=mask[:, None],
+            other=0.0,
+        ).to(tl.float32)
+        alpha = tl.exp(m_i - m_new)
+        acc = acc * alpha + tl.sum(p[:, None] * v, axis=0)
+        l_i = l_i * alpha + tl.sum(p, axis=0)
+        m_i = m_new
+
+    slot = head * splits + split
+    tl.store(acc_ptr + slot * head_dim + d, acc)
+    tl.store(ml_ptr + slot * 2, m_i)
+    tl.store(ml_ptr + slot * 2 + 1, l_i)
+
+
+@triton.jit
+def _gqa_decode_attn_combine_kernel(
+    acc_ptr,
+    ml_ptr,
+    out_ptr,
+    q_heads: tl.constexpr,
+    head_dim: tl.constexpr,
+    splits: tl.constexpr,
+):
+    head = tl.program_id(0)
+    d = tl.arange(0, head_dim)
+    m_max = -float("inf")
+    for split in range(splits):
+        m_max = tl.maximum(m_max, tl.load(ml_ptr + (head * splits + split) * 2))
+    total = tl.zeros((head_dim,), tl.float32)
+    l_total = 0.0
+    for split in range(splits):
+        slot = head * splits + split
+        weight = tl.exp(tl.load(ml_ptr + slot * 2) - m_max)
+        total += tl.load(acc_ptr + slot * head_dim + d) * weight
+        l_total += tl.load(ml_ptr + slot * 2 + 1) * weight
+    tl.store(out_ptr + head * head_dim + d, (total / l_total).to(tl.bfloat16))
+
+
+def gqa_decode_attention(
+    q: torch.Tensor,
+    cache_keys: torch.Tensor,
+    cache_values: torch.Tensor,
+    valid_length: torch.Tensor,
+    scale: float,
+    *,
+    splits: int = 4,
+    block_n: int = 64,
+) -> torch.Tensor:
+    """Compute one greedy decode attention step without a mask or GQA expansion.
+
+    ``q`` is ``[1, H, 1, D]`` BF16; ``cache_keys``/``cache_values`` are static
+    cache tensors ``[1, KVH, L, D]``; ``valid_length`` is a device scalar that
+    already includes the current token. Returns ``[1, 1, H*D]`` BF16.
+    """
+
+    if q.ndim != 4 or q.shape[0] != 1 or q.shape[2] != 1:
+        raise ValueError("GQA decode attention expects q[1,H,1,D]")
+    if cache_keys.ndim != 4 or cache_keys.shape[0] != 1:
+        raise ValueError("static K cache must be [1,KVH,L,D]")
+    if cache_values.shape != cache_keys.shape:
+        raise ValueError("static K/V cache shapes must match")
+    if not q.is_contiguous() or not cache_keys.is_contiguous() or not cache_values.is_contiguous():
+        raise ValueError("GQA decode attention tensors must be contiguous")
+    heads, head_dim = q.shape[1], q.shape[3]
+    kv_heads, cache_len = cache_keys.shape[1], cache_keys.shape[2]
+    if head_dim != cache_keys.shape[3] or heads % kv_heads:
+        raise ValueError("GQA decode attention head layout does not match cache")
+    slots = heads * splits
+    acc = torch.empty((slots, head_dim), device=q.device, dtype=torch.float32)
+    ml = torch.empty((slots, 2), device=q.device, dtype=torch.float32)
+    out = torch.empty((1, 1, heads * head_dim), device=q.device, dtype=q.dtype)
+    _gqa_decode_attn_splitkv_kernel[(heads, splits)](
+        q,
+        cache_keys,
+        cache_values,
+        valid_length,
+        acc,
+        ml,
+        cache_len,
+        scale,
+        heads,
+        kv_heads,
+        head_dim,
+        splits,
+        block_n,
+        num_warps=4,
+        num_stages=1,
+    )
+    _gqa_decode_attn_combine_kernel[(heads,)](
+        acc,
+        ml,
+        out,
+        heads,
+        head_dim,
+        splits,
+        num_warps=4,
+    )
+    return out
+
+
+@triton.jit
 def _lm_head_block_top1_kernel(
     hidden_ptr,
     weight_ptr,

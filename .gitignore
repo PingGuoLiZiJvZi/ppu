@@ -4,3 +4,4 @@ qwen35_fused/triton_cache
 datasets/
 submission/
 submission.zip
+artifacts/*.json

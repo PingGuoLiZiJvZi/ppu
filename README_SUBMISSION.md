@@ -13,10 +13,14 @@
   预计算跨 value tile 重复使用的 Q/K reduction、缩放和指数因子，降低 TTFT。
 - MLP：decode 阶段使用 PPU 专用 fused SwiGLU GEMV，合并 packed gate/up
   projection、SiLU 和乘法，减少中间 BF16 访存和 kernel 启动。
-- Attention 与 Vision：融合 packed QGKV、Q/K norm、RoPE、Vision QKV/RoPE、
-  residual/norm，并预计算 Vision position、插值和 sequence metadata。
+- Attention：融合 packed QGKV、Q/K norm 和 RoPE；单 token decode 使用
+  maskless split-KV GQA Triton kernel，直接读取 2-head StaticCache，避免完整
+  causal mask 和 KV head 展开。
+- Vision：融合 QKV/RoPE、residual/norm 和位置插值，并按 patch 数缓存 Vision
+  blocks 的 CUDA Graph，重复 shape 直接 replay。
 - 推理框架：按长度 bucket 复用 StaticCache，使用静态地址捕获并复用 greedy
-  decode graph；LM head 直接执行分块 argmax，避免完整 logits 落盘。
+  decode graph；加载时预热 5 个 decode bucket 和常见 Vision shape；LM head
+  直接执行分块 argmax，避免完整 logits 落盘。
 
 
 ## 运行要求

@@ -16,6 +16,7 @@ from qwen35_fused.kernels import (
     causal_conv1d_fused,
     delta_recurrent_fused,
     gated_rms_norm,
+    gqa_decode_attention,
     layer_norm,
     lm_head_argmax,
     position_embed_add,
@@ -222,6 +223,26 @@ def main() -> None:
     gate = torch.randn(7, 2048, device=device, dtype=dtype)
     value = torch.randn_like(gate)
     results["sigmoid_mul"] = error(sigmoid_mul(value, gate), value * gate.sigmoid())
+
+    # Decode GQA attention vs maskless SDPA over the valid prefix. The kernel
+    # reassociates the FP32 online softmax, so expect BF16-level (not exact)
+    # agreement.
+    decode_q = torch.randn(1, 8, 1, 256, device=device, dtype=dtype)
+    decode_keys = torch.randn(1, 2, 512, 256, device=device, dtype=dtype)
+    decode_values = torch.randn_like(decode_keys)
+    for n_valid in (1, 7, 370, 512):
+        length = torch.tensor([n_valid], device=device, dtype=torch.int64)
+        expected_decode = F.scaled_dot_product_attention(
+            decode_q,
+            decode_keys[:, :, :n_valid],
+            decode_values[:, :, :n_valid],
+            scale=0.0625,
+            enable_gqa=True,
+        ).view(1, 1, -1)
+        actual_decode = gqa_decode_attention(
+            decode_q, decode_keys, decode_values, length, 0.0625
+        )
+        results[f"gqa_decode_attn_{n_valid}"] = error(actual_decode, expected_decode)
 
     batch, seq_len, q_heads, kv_heads, head_dim, rotary_dim = 1, 5, 8, 2, 256, 64
     packed_width = 2 * q_heads * head_dim + 2 * kv_heads * head_dim

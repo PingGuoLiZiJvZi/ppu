@@ -378,10 +378,10 @@ def main() -> None:
         "weights": {
             "vision_patch_embed": str(model.model.visual.patch_embed.proj.weight.dtype),
             "token_embedding": str(model.get_input_embeddings().weight.dtype),
-            "linear_qkv": str(linear_layer.in_proj_qkv.weight.dtype),
+            "linear_qkv": str(getattr(linear_layer.in_proj_qkv.weight, "dtype", None)),
             "linear_A_log": str(linear_layer.A_log.dtype),
             "linear_dt_bias": str(linear_layer.dt_bias.dtype),
-            "full_q_proj": str(full_layer.q_proj.weight.dtype),
+            "full_q_proj": str(getattr(full_layer.q_proj.weight, "dtype", None)),
             "lm_head": str(model.lm_head.weight.dtype),
         },
         "activations": {

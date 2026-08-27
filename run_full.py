@@ -7,7 +7,6 @@ import argparse
 import gc
 import json
 import math
-import os
 import random
 import time
 from datetime import datetime
@@ -81,7 +80,6 @@ def run_one(
         raise ValueError(f"No samples loaded from {dataset_path}")
 
     print(f"\n[{label}] Loading fused model: {model_path}", flush=True)
-    os.environ["QWEN35_FUSIONS"] = "1"
     model = VLMModel(model_path, backend="transformers", device=device)
     fusion_stats = getattr(model, "_fusion_stats", {})
     if not fusion_stats:

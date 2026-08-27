@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 import time
@@ -25,10 +24,7 @@ from qwen35_fused.graph import GreedyDecodeGraph
 from qwen35_fused.integration import precompute_vision_kwargs
 
 
-FUSIONS_ENABLED = os.environ.get("QWEN35_FUSIONS", "1") != "0"
-OUT = ROOT / "artifacts" / (
-    "qwen3_5_fused_kernel_profile.json" if FUSIONS_ENABLED else "qwen3_5_bf16_kernel_profile.json"
-)
+OUT = ROOT / "artifacts" / "qwen3_5_fused_kernel_profile.json"
 DECODE_STEPS = 8
 
 

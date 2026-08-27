@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 import sys
 import time
@@ -13,13 +12,13 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from transformers import AutoModelForImageTextToText, AutoProcessor
 from transformers.cache_utils import StaticCache
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from benchmark_public import build_prompt, decode_image, load_mmbench_tsv
-from evaluation_wrapper import VLMModel
 from qwen35_fused.integration import FusionConfig, apply_fusions
 from qwen35_fused.graph import GreedyDecodeGraph
 
@@ -71,10 +70,19 @@ def main() -> None:
 
     load_start = time.perf_counter()
     # This benchmark applies exactly the requested variant below.
-    os.environ["QWEN35_FUSIONS"] = "0"
-    wrapper = VLMModel(str(ROOT / "Qwen3.5-2B"), backend="transformers", device="auto")
-    model = wrapper._model
-    processor = wrapper._processor
+    model_path = str(ROOT / "Qwen3.5-2B")
+    processor = AutoProcessor.from_pretrained(
+        model_path,
+        local_files_only=True,
+        trust_remote_code=True,
+    )
+    model = AutoModelForImageTextToText.from_pretrained(
+        model_path,
+        local_files_only=True,
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+    ).eval()
     memory_before_fusion = int(torch.cuda.memory_allocated())
     fusion_config = variant_config(args.variant)
     fusion_stats = apply_fusions(model, fusion_config) if fusion_config is not None else {}

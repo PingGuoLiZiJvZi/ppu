@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 
+GRAPH_STEPS = 1
+
+
 @dataclass
 class GenerationConfig:
     max_new_tokens: int
@@ -106,16 +109,14 @@ class VLMModel:
             torch_dtype=torch.bfloat16,
             device_map=self.device,
         ).eval()
-        self._fusion_stats = {}
-        if os.environ.get("QWEN35_FUSIONS", "1") != "0":
-            bundled_cache = Path(__file__).resolve().parent / "triton"
-            if bundled_cache.is_dir():
-                os.environ.setdefault("TRITON_CACHE_DIR", str(bundled_cache))
-            from qwen35_fused.integration import apply_fusions
+        bundled_cache = Path(__file__).resolve().parent / "triton"
+        if bundled_cache.is_dir():
+            os.environ.setdefault("TRITON_CACHE_DIR", str(bundled_cache))
+        from qwen35_fused.integration import apply_fusions
 
-            self._fusion_stats = apply_fusions(self._model)
-            self._prewarm_decode_buckets()
-            self._prewarm_vision_graphs()
+        self._fusion_stats = apply_fusions(self._model)
+        self._prewarm_decode_buckets()
+        self._prewarm_vision_graphs()
         self._tokenizer = getattr(self._processor, "tokenizer", None)
 
     def _prewarm_decode_buckets(self, buckets: tuple[int, ...] = (512, 640, 768, 896, 1024)) -> None:
@@ -136,7 +137,6 @@ class VLMModel:
         device = model.device
         eos = model.generation_config.eos_token_id
         fill_id = int(eos[0]) if isinstance(eos, (list, tuple)) else int(eos or 0)
-        graph_steps = max(1, int(os.environ.get("QWEN35_GRAPH_STEPS", "1")))
         for bucket in buckets:
             input_len = bucket - 256 - 1
             input_ids = torch.full((1, input_len), fill_id, device=device, dtype=torch.long)
@@ -165,7 +165,7 @@ class VLMModel:
                         token,
                         position,
                         fused_lm_head=True,
-                        steps=graph_steps,
+                        steps=GRAPH_STEPS,
                     )
                     runner.replay()
             except Exception:
@@ -339,8 +339,6 @@ class VLMModel:
         max_new_tokens = max(1, int(generation_config.max_new_tokens))
         required_cache_len = input_len + max_new_tokens + 1
         cache_bucket = max(512, ((required_cache_len + 127) // 128) * 128)
-        graph_steps = max(1, int(os.environ.get("QWEN35_GRAPH_STEPS", "1")))
-
         start = time.perf_counter()
         cache = self._decode_caches.get(cache_bucket)
         cache_is_new = cache is None
@@ -406,7 +404,7 @@ class VLMModel:
                         token,
                         first_position,
                         fused_lm_head=True,
-                        steps=graph_steps,
+                        steps=GRAPH_STEPS,
                     )
                     self._decode_graphs[cache_bucket] = runner
                 else:
@@ -434,7 +432,7 @@ class VLMModel:
             meta={
                 "backend": "transformers-fused",
                 "cuda_graph": len(generated) > 2,
-                "cuda_graph_steps": graph_steps,
+                "cuda_graph_steps": GRAPH_STEPS,
                 "cache_bucket": cache_bucket,
                 "cache_reused": not cache_is_new,
                 "cuda_graph_reused": graph_was_reused,
